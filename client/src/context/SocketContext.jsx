@@ -10,7 +10,10 @@ export function SocketProvider({ children }) {
 
   useEffect(() => {
     if (!user) return;
-    const s = io('/', { path: '/socket.io', withCredentials: true });
+    const s = io(import.meta.env.VITE_API_URL || '/', {
+      path: '/socket.io',
+      withCredentials: true,
+    });
     setSocket(s);
     return () => s.disconnect();
   }, [user]);

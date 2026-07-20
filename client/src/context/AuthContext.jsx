@@ -6,7 +6,13 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const cached = localStorage.getItem("nss_user");
-    return cached ? JSON.parse(cached) : null;
+    if (!cached || cached === "undefined") return null;
+    try {
+      return JSON.parse(cached);
+    } catch {
+      localStorage.removeItem("nss_user");
+      return null;
+    }
   });
   const [loading, setLoading] = useState(true);
 
@@ -17,7 +23,8 @@ export function AuthProvider({ children }) {
         window.location.pathname === p ||
         window.location.pathname.startsWith(`${p}/`),
     );
-    const hasCachedUser = !!localStorage.getItem("nss_user");
+    const cachedRaw = localStorage.getItem("nss_user");
+    const hasCachedUser = !!cachedRaw && cachedRaw !== "undefined";
 
     if (isPublicOnlyPath && !hasCachedUser) {
       setLoading(false);

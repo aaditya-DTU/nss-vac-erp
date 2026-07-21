@@ -297,7 +297,7 @@ export default function Landing() {
 
             <div className="flex items-center gap-4">
               <a
-                href="https://instagram.com/nss_dtu"
+                href="https://www.instagram.com/nssdtu"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="NSS DTU on Instagram"
@@ -306,7 +306,7 @@ export default function Landing() {
                 <Instagram size={17} />
               </a>
               <a
-                href="https://linkedin.com/company/nss-dtu"
+                href="https://www.linkedin.com/company/national-service-scheme-dtu"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="NSS DTU on LinkedIn"

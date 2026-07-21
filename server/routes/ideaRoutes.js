@@ -8,6 +8,7 @@ router.use(protect);
 
 router.get('/', ctrl.listIdeas);
 router.post('/', authorize('student'), ctrl.submitIdea);
+router.post('/:id/upvote', ctrl.toggleUpvote);
 router.patch('/:id/status', authorize('admin'), ctrl.updateIdeaStatus);
 router.delete('/:id', ctrl.deleteIdea);
 

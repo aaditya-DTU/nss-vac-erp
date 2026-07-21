@@ -3,6 +3,7 @@ const QRCode = require('qrcode');
 const Event = require('../models/Event');
 const Attendance = require('../models/Attendance');
 const { awardCredit, notify } = require('../utils/ledger');
+const { distanceMeters } = require('../utils/geo');
 
 exports.createEvent = async (req, res, next) => {
   try {
@@ -15,7 +16,7 @@ exports.createEvent = async (req, res, next) => {
 
 exports.updateEvent = async (req, res, next) => {
   try {
-    const allowed = ['title', 'description', 'location', 'startTime', 'endTime', 'hoursWorth', 'pointsWorth'];
+    const allowed = ['title', 'description', 'location', 'startTime', 'endTime', 'hoursWorth', 'pointsWorth', 'venueLat', 'venueLng', 'checkinRadiusMeters'];
     const updates = {};
     allowed.forEach((k) => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
 
@@ -80,7 +81,7 @@ exports.closeAttendance = async (req, res, next) => {
 exports.checkIn = async (req, res, next) => {
   try {
     const io = req.app.get('io');
-    const { code } = req.body;
+    const { code, lat, lng } = req.body;
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ success: false, message: 'Event not found.' });
 
@@ -102,12 +103,43 @@ exports.checkIn = async (req, res, next) => {
       });
     }
 
+    // GPS gate: the attendance code/QR is still static and shareable, but
+    // this stops a remote check-in — someone forwarded the code can't
+    // check in from off-site because their device location won't be near
+    // venueLat/venueLng. Events created before this feature has no venue
+    // coordinates set, so we skip the check for those rather than lock
+    // everyone out — but log it so admins know to add coordinates.
+    let distance = null;
+    if (event.venueLat != null && event.venueLng != null) {
+      if (typeof lat !== 'number' || typeof lng !== 'number') {
+        return res.status(400).json({
+          success: false,
+          message: 'Location access is required to check in to this event. Please allow location access and try again.',
+        });
+      }
+
+      distance = distanceMeters(event.venueLat, event.venueLng, lat, lng);
+      if (distance > event.checkinRadiusMeters) {
+        return res.status(400).json({
+          success: false,
+          message: `You appear to be ${Math.round(distance)}m from the venue — check-in only works within ${event.checkinRadiusMeters}m. Move closer and try again.`,
+        });
+      }
+    } else {
+      console.warn(`Event ${event._id} ("${event.title}") has no venue coordinates set — check-in for it is not GPS-verified.`);
+    }
+
     const existing = await Attendance.findOne({ event: event._id, student: req.user._id });
     if (existing) {
       return res.status(409).json({ success: false, message: 'You have already checked in for this event.' });
     }
 
-    const attendance = await Attendance.create({ event: event._id, student: req.user._id, method: 'qr' });
+    const attendance = await Attendance.create({
+      event: event._id,
+      student: req.user._id,
+      method: 'qr',
+      distanceFromVenueMeters: distance != null ? Math.round(distance) : null,
+    });
 
     await awardCredit({
       studentId: req.user._id,

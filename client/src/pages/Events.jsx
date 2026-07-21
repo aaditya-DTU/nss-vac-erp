@@ -5,7 +5,7 @@ import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import { format } from "date-fns";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, X, Copy, QrCode, CircleDot, CircleOff, Pencil } from "lucide-react";
+import { Plus, X, Copy, QrCode, CircleDot, CircleOff, Pencil, Crosshair, MapPin } from "lucide-react";
 
 const emptyForm = {
   title: "",
@@ -15,6 +15,9 @@ const emptyForm = {
   endTime: "",
   hoursWorth: 4,
   pointsWorth: 20,
+  venueLat: "",
+  venueLng: "",
+  checkinRadiusMeters: 200,
 };
 
 // datetime-local inputs need "YYYY-MM-DDTHH:mm" in LOCAL time — using
@@ -65,11 +68,45 @@ export default function Events() {
     load();
   };
 
+  const [locatingCheckin, setLocatingCheckin] = useState(false);
+
+  const getLocation = () =>
+    new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Your browser doesn't support location access, which this event requires for check-in."));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => {
+          if (err.code === 1) {
+            reject(new Error("Location access was denied. Please allow location access in your browser settings and try again."));
+          } else {
+            reject(new Error("Could not get your location. Make sure GPS/location services are on and try again."));
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+
   const checkIn = async (e) => {
     e.preventDefault();
+    setLocatingCheckin(true);
+    let coords;
+    try {
+      coords = await getLocation();
+    } catch (err) {
+      setLocatingCheckin(false);
+      toast.error(err.message);
+      return;
+    }
+    setLocatingCheckin(false);
+
     try {
       await api.post(`/events/${activeEvent._id}/attendance/checkin`, {
         code: checkinCode.trim(),
+        lat: coords.lat,
+        lng: coords.lng,
       });
       toast.success("Checked in! Hours credited.");
       setActiveEvent(null);
@@ -95,6 +132,9 @@ export default function Events() {
       endTime: toDatetimeLocal(ev.endTime),
       hoursWorth: ev.hoursWorth,
       pointsWorth: ev.pointsWorth,
+      venueLat: ev.venueLat ?? "",
+      venueLng: ev.venueLng ?? "",
+      checkinRadiusMeters: ev.checkinRadiusMeters ?? 200,
     });
     setShowCreateForm(true);
   };
@@ -102,6 +142,35 @@ export default function Events() {
   const closeForm = () => {
     setShowCreateForm(false);
     setEditingId(null);
+  };
+
+  const [locating, setLocating] = useState(false);
+
+  // Admin taps this while standing at (or near) the venue to fill in
+  // venueLat/venueLng automatically instead of hunting down coordinates
+  // manually. They can still edit the fields by hand afterwards.
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Your browser doesn't support location access.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm((f) => ({
+          ...f,
+          venueLat: pos.coords.latitude.toFixed(6),
+          venueLng: pos.coords.longitude.toFixed(6),
+        }));
+        setLocating(false);
+        toast.success("Venue location set to your current position");
+      },
+      (err) => {
+        setLocating(false);
+        toast.error(err.code === 1 ? "Location permission denied." : "Could not get your location.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   // Handles both creating a brand-new event and saving edits to an
@@ -112,6 +181,9 @@ export default function Events() {
       ...form,
       hoursWorth: Number(form.hoursWorth),
       pointsWorth: Number(form.pointsWorth),
+      venueLat: form.venueLat === "" ? null : Number(form.venueLat),
+      venueLng: form.venueLng === "" ? null : Number(form.venueLng),
+      checkinRadiusMeters: Number(form.checkinRadiusMeters) || 200,
     };
     try {
       if (editingId) {
@@ -183,6 +255,12 @@ export default function Events() {
                   <CircleOff size={12} />
                 )}
                 Attendance {ev.isAttendanceOpen ? "open" : "closed"}
+              </p>
+            )}
+
+            {user.role === "admin" && (ev.venueLat == null || ev.venueLng == null) && (
+              <p className="text-xs mb-3 text-amber-600 flex items-center gap-1">
+                <MapPin size={12} /> No venue location set — check-in won't be GPS-verified
               </p>
             )}
 
@@ -276,6 +354,49 @@ export default function Events() {
               value={form.location}
               onChange={(e) => setForm({ ...form, location: e.target.value })}
             />
+
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm font-medium text-ink/70">
+                Venue GPS coordinates
+              </label>
+              <button
+                type="button"
+                onClick={useMyLocation}
+                disabled={locating}
+                className="text-xs text-primary-600 hover:underline flex items-center gap-1 disabled:opacity-50"
+              >
+                <Crosshair size={12} /> {locating ? "Locating…" : "Use my current location"}
+              </button>
+            </div>
+            <p className="text-xs text-ink/40 mb-2">
+              Required for check-in to verify students are actually at the venue. Stand at (or near) the venue and
+              tap "Use my current location", or enter coordinates manually.
+            </p>
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <input
+                type="number"
+                step="any"
+                placeholder="Latitude"
+                className="input"
+                value={form.venueLat}
+                onChange={(e) => setForm({ ...form, venueLat: e.target.value })}
+              />
+              <input
+                type="number"
+                step="any"
+                placeholder="Longitude"
+                className="input"
+                value={form.venueLng}
+                onChange={(e) => setForm({ ...form, venueLng: e.target.value })}
+              />
+              <input
+                type="number"
+                placeholder="Radius (m)"
+                className="input"
+                value={form.checkinRadiusMeters}
+                onChange={(e) => setForm({ ...form, checkinRadiusMeters: e.target.value })}
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
@@ -405,13 +526,19 @@ export default function Events() {
               works once your coordinator has opened it on-site, even during
               this window.
             </p>
+            <p className="text-xs text-ink/50 mb-3 flex items-center gap-1">
+              <MapPin size={12} className="text-primary-500 shrink-0" />
+              You'll be asked for location access — check-in only works if you're physically at the venue.
+            </p>
             <input
               className="input mb-3 font-mono text-sm"
               value={checkinCode}
               onChange={(e) => setCheckinCode(e.target.value)}
               placeholder="Event ID"
             />
-            <button className="btn-primary w-full">Check in</button>
+            <button className="btn-primary w-full" disabled={locatingCheckin}>
+              {locatingCheckin ? "Getting your location…" : "Check in"}
+            </button>
           </form>
         </div>
       )}

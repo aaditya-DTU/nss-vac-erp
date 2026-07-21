@@ -7,6 +7,7 @@ const attendanceSchema = new mongoose.Schema(
     checkedInAt: { type: Date, default: Date.now },
     method: { type: String, enum: ['qr', 'manual'], default: 'qr' },
     markedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    distanceFromVenueMeters: { type: Number, default: null },
   },
   { timestamps: true }
 );

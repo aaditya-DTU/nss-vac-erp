@@ -1,3 +1,16 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { 
+      "source": "/api/(.*)", 
+      "destination": "https://nss-vac-erp.onrender.com/api/$1" 
+    },
+    { 
+      "source": "/socket.io/(.*)", 
+      "destination": "https://nss-vac-erp.onrender.com/socket.io/$1" 
+    },
+    { 
+      "source": "/(.*)", 
+      "destination": "/index.html" 
+    }
+  ]
 }

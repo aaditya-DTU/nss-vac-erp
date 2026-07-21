@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { usePageTitle } from '../../context/PageTitleContext';
 import api from '../../api/axios';
 import { format } from 'date-fns';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Pencil, Trash2 } from 'lucide-react';
 
 const emptyForm = {
   title: '', description: '', category: 'other', points: 10, hoursWorth: 2,
@@ -11,10 +11,10 @@ const emptyForm = {
 };
 
 export default function AdminTasks() {
-  usePageTitle("Task Management");
   const [tasks, setTasks] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState(null); // null = creating, an id = editing that task
   const [selectedTask, setSelectedTask] = useState(null);
   const [submissions, setSubmissions] = useState([]);
 
@@ -35,7 +35,35 @@ export default function AdminTasks() {
     loadTasks();
   };
 
-  const createTask = async (e) => {
+  const openCreate = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setShowForm(true);
+  };
+
+  const openEdit = (task) => {
+    setEditingId(task._id);
+    setForm({
+      title: task.title,
+      description: task.description,
+      category: task.category,
+      points: task.points,
+      hoursWorth: task.hoursWorth,
+      deadline: task.deadline ? task.deadline.slice(0, 10) : '',
+      scope: task.assignedTo?.scope === 'filter' ? 'filter' : 'all',
+      year: task.assignedTo?.filter?.year || '',
+      branch: task.assignedTo?.filter?.branch || '',
+      section: task.assignedTo?.filter?.section || '',
+    });
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+  };
+
+  const saveTask = async (e) => {
     e.preventDefault();
     try {
       const assignedTo =
@@ -43,7 +71,7 @@ export default function AdminTasks() {
           ? { scope: 'all' }
           : { scope: 'filter', filter: { year: form.year || undefined, branch: form.branch || undefined, section: form.section || undefined } };
 
-      await api.post('/tasks', {
+      const payload = {
         title: form.title,
         description: form.description,
         category: form.category,
@@ -51,26 +79,48 @@ export default function AdminTasks() {
         hoursWorth: Number(form.hoursWorth),
         deadline: form.deadline,
         assignedTo,
-      });
-      toast.success('Task published and students notified');
-      setShowForm(false);
+      };
+
+      if (editingId) {
+        await api.patch(`/tasks/${editingId}`, payload);
+        toast.success('Task updated');
+      } else {
+        await api.post('/tasks', payload);
+        toast.success('Task published and students notified');
+      }
+      closeForm();
       setForm(emptyForm);
       loadTasks();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create task');
+      toast.error(err.response?.data?.message || 'Failed to save task');
     }
   };
+
+  const deleteTask = async (task) => {
+    if (!confirm(`Delete "${task.title}"? Students will no longer see it, but existing review history is kept.`)) return;
+    try {
+      await api.delete(`/tasks/${task._id}`);
+      toast.success('Task deleted');
+      loadTasks();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete task');
+    }
+  };
+
+  const visibleTasks = tasks.filter((t) => t.status !== 'archived');
+
+  usePageTitle('Admin tasks');
 
   return (
     <>
       <div className="flex justify-end mb-4">
-        <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm(true)}>
+        <button className="btn-primary flex items-center gap-2" onClick={openCreate}>
           <Plus size={18} /> New task
         </button>
       </div>
 
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-        {tasks.map((t) => (
+        {visibleTasks.map((t) => (
           <div key={t._id} className="card">
             <div className="flex items-start justify-between mb-2">
               <span className="badge bg-primary-50 text-primary-700 capitalize">{t.category.replace('_', ' ')}</span>
@@ -80,16 +130,33 @@ export default function AdminTasks() {
             <p className="text-xs text-ink/50 mb-4">
               {t.stats.submittedCount}/{t.stats.assignedCount} submitted · {t.stats.approvedCount} approved
             </p>
-            <button className="btn-secondary w-full text-sm" onClick={() => openReview(t)}>Review submissions</button>
+            <div className="space-y-2">
+              <button className="btn-secondary w-full text-sm" onClick={() => openReview(t)}>Review submissions</button>
+              <div className="flex gap-2">
+                <button
+                  className="btn-secondary flex-1 text-sm flex items-center justify-center gap-1"
+                  onClick={() => openEdit(t)}
+                >
+                  <Pencil size={14} /> Edit
+                </button>
+                <button
+                  className="btn-secondary flex-1 text-sm flex items-center justify-center gap-1 text-red-500"
+                  onClick={() => deleteTask(t)}
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+              </div>
+            </div>
           </div>
         ))}
+        {visibleTasks.length === 0 && <p className="text-ink/50">No tasks yet.</p>}
       </div>
 
       {showForm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-30 p-4">
-          <form onSubmit={createTask} className="card w-full max-w-lg max-h-[90vh] overflow-y-auto relative">
-            <button type="button" onClick={() => setShowForm(false)} className="absolute right-4 top-4 text-ink/40 hover:text-ink"><X size={20} /></button>
-            <h3 className="font-display text-xl text-primary-900 mb-4">Create task</h3>
+          <form onSubmit={saveTask} className="card w-full max-w-lg max-h-[90vh] overflow-y-auto relative">
+            <button type="button" onClick={closeForm} className="absolute right-4 top-4 text-ink/40 hover:text-ink"><X size={20} /></button>
+            <h3 className="font-display text-xl text-primary-900 mb-4">{editingId ? 'Edit task' : 'Create task'}</h3>
 
             <label className="text-sm font-medium text-ink/70">Title</label>
             <input required className="input mt-1 mb-3" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
@@ -134,7 +201,7 @@ export default function AdminTasks() {
               </div>
             )}
 
-            <button type="submit" className="btn-primary w-full mt-2">Publish task</button>
+            <button type="submit" className="btn-primary w-full mt-2">{editingId ? 'Save changes' : 'Publish task'}</button>
           </form>
         </div>
       )}

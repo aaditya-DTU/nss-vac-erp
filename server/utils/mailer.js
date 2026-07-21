@@ -45,4 +45,30 @@ async function sendOtpEmail(email, otp) {
   return { delivered: true, mode: 'smtp' };
 }
 
-module.exports = { sendOtpEmail };
+async function sendPasswordResetOtpEmail(email, otp) {
+  const t = getTransporter();
+
+  if (!t) {
+    console.log(`\n[mailer] SMTP not configured — password reset OTP for ${email}: ${otp}\n`);
+    return { delivered: false, mode: 'console' };
+  }
+
+  await t.sendMail({
+    from: process.env.SMTP_FROM || `"NSS VAC ERP" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: 'Reset your NSS VAC ERP password',
+    html: `
+      <div style="font-family: sans-serif; max-width: 420px; margin: auto;">
+        <p style="color:#1565C0; font-size:12px; letter-spacing:1px; text-transform:uppercase;">NSS VAC · DTU</p>
+        <h2 style="color:#0D47A1;">Reset your password</h2>
+        <p>Someone requested a password reset for this account. Use the code below to continue:</p>
+        <p style="font-size:32px; font-weight:700; letter-spacing:6px; color:#0D47A1;">${otp}</p>
+        <p style="color:#666; font-size:13px;">This code expires in 10 minutes. If you didn't request this, you can safely ignore this email — your password will not be changed.</p>
+      </div>
+    `,
+  });
+
+  return { delivered: true, mode: 'smtp' };
+}
+
+module.exports = { sendOtpEmail, sendPasswordResetOtpEmail };

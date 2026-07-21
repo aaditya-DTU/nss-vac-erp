@@ -1,47 +1,14 @@
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
 const User = require('../models/User');
-const EmailOtp = require('../models/EmailOtp');
-const { generateOtp } = require('../utils/otp');
-const { sendOtpEmail } = require('../utils/mailer');
 const { setAuthCookie, clearAuthCookie } = require('../utils/authCookie');
+const { signToken, isAllowedEmailDomain, issueRegistrationOtp } = require('../utils/otpHelpers');
 
-const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const OTP_RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds
-const OTP_MAX_ATTEMPTS = 5;
-
-function signToken(user) {
-  return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  });
-}
-
-// Locks self-registration to the university domain. Configurable via env
-// so this same codebase works for any institution, not just DTU.
-function isAllowedEmailDomain(email) {
-  const domain = (process.env.ALLOWED_EMAIL_DOMAIN || 'dtu.ac.in').toLowerCase();
-  return email.toLowerCase().endsWith(`@${domain}`);
-}
-
-async function issueOtp(email) {
-  const otp = generateOtp();
-  const otpHash = await bcrypt.hash(otp, 10);
-
-  await EmailOtp.findOneAndUpdate(
-    { email: email.toLowerCase() },
-    { otpHash, expiresAt: new Date(Date.now() + OTP_TTL_MS), attempts: 0, lastSentAt: new Date() },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
-
-  await sendOtpEmail(email, otp);
-}
-
-// Public self-registration is intentionally students-only, and now gated
-// behind two checks: the email must be on the university domain, and the
-// account isn't actually usable (no JWT issued) until the OTP sent here is
-// verified via POST /auth/verify-otp. Admin (teacher/coordinator) accounts
-// are still provisioned by an existing admin via POST /api/users, and are
-// pre-verified there — this route can never create one.
+// Public self-registration is intentionally students-only, and gated behind
+// two checks: the email must be on the university domain, and the account
+// isn't actually usable (no JWT issued) until the OTP sent here is verified
+// via POST /auth/verify-otp — see otpController.js. Admin (teacher/
+// coordinator) accounts are still provisioned by an existing admin via
+// POST /api/users, and are pre-verified there — this route can never
+// create one.
 exports.register = async (req, res, next) => {
   try {
     const { name, email, password, rollNo, branch, year, section } = req.body;
@@ -77,7 +44,7 @@ exports.register = async (req, res, next) => {
       await User.create({ name, email, password, rollNo, branch, year, section, role: 'student', isVerified: false });
     }
 
-    await issueOtp(email);
+    await issueRegistrationOtp(email);
 
     res.status(201).json({
       success: true,
@@ -85,76 +52,6 @@ exports.register = async (req, res, next) => {
       email: email.toLowerCase(),
       requiresVerification: true,
     });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.verifyOtp = async (req, res, next) => {
-  try {
-    const { email, otp } = req.body;
-    if (!email || !otp) {
-      return res.status(400).json({ success: false, message: 'Email and code are required.' });
-    }
-
-    const record = await EmailOtp.findOne({ email: email.toLowerCase() });
-    if (!record) {
-      return res.status(400).json({ success: false, message: 'No pending verification for this email. Please register again.' });
-    }
-    if (record.expiresAt < new Date()) {
-      return res.status(400).json({ success: false, message: 'This code has expired. Request a new one.' });
-    }
-    if (record.attempts >= OTP_MAX_ATTEMPTS) {
-      return res.status(429).json({ success: false, message: 'Too many incorrect attempts. Request a new code.' });
-    }
-
-    const isMatch = await record.compareOtp(otp);
-    if (!isMatch) {
-      record.attempts += 1;
-      await record.save();
-      const remaining = OTP_MAX_ATTEMPTS - record.attempts;
-      return res.status(400).json({ success: false, message: `Incorrect code. ${remaining} attempt${remaining === 1 ? '' : 's'} left.` });
-    }
-
-    const user = await User.findOneAndUpdate({ email: email.toLowerCase() }, { isVerified: true }, { new: true });
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Account not found. Please register again.' });
-    }
-
-    await EmailOtp.deleteOne({ email: email.toLowerCase() });
-
-    user.lastLoginAt = new Date();
-    await user.save();
-
-    const token = signToken(user);
-    setAuthCookie(res, token);
-    res.json({ success: true, user: user.toSafeObject() });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.resendOtp = async (req, res, next) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
-
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user || user.isVerified) {
-      return res.status(400).json({ success: false, message: 'No pending verification for this email.' });
-    }
-
-    const existingOtp = await EmailOtp.findOne({ email: email.toLowerCase() });
-    if (existingOtp) {
-      const msSinceLastSend = Date.now() - existingOtp.lastSentAt.getTime();
-      if (msSinceLastSend < OTP_RESEND_COOLDOWN_MS) {
-        const waitSeconds = Math.ceil((OTP_RESEND_COOLDOWN_MS - msSinceLastSend) / 1000);
-        return res.status(429).json({ success: false, message: `Please wait ${waitSeconds}s before requesting another code.` });
-      }
-    }
-
-    await issueOtp(email);
-    res.json({ success: true, message: 'A new verification code has been sent.' });
   } catch (err) {
     next(err);
   }
@@ -200,8 +97,7 @@ exports.me = async (req, res) => {
 
 // JS cannot clear an httpOnly cookie on its own — the client calling this
 // endpoint (which responds with a Set-Cookie that immediately expires it) is
-// the only way to actually log out, unlike the old localStorage.removeItem()
-// approach which needed no server round trip.
+// the only way to actually log out.
 exports.logout = async (req, res) => {
   clearAuthCookie(res);
   res.json({ success: true, message: 'Logged out.' });

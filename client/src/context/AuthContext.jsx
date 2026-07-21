@@ -17,7 +17,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const PUBLIC_ONLY_PATHS = ["/login", "/register", "/about", "/verify"];
+    const PUBLIC_ONLY_PATHS = ["/login", "/register", "/forgot-password", "/about", "/verify"];
     const isPublicOnlyPath = PUBLIC_ONLY_PATHS.some(
       (p) =>
         window.location.pathname === p ||
@@ -67,6 +67,26 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const forgotPassword = async (email) => {
+    const { data } = await api.post("/auth/forgot-password", { email });
+    return data;
+  };
+
+  const resendResetOtp = async (email) => {
+    const { data } = await api.post("/auth/resend-reset-otp", { email });
+    return data;
+  };
+
+  const verifyResetOtp = async (email, otp) => {
+    const { data } = await api.post("/auth/verify-reset-otp", { email, otp });
+    return data; // { success, resetToken }
+  };
+
+  const resetPassword = async (resetToken, newPassword) => {
+    const { data } = await api.post("/auth/reset-password", { resetToken, newPassword });
+    return data;
+  };
+
   const logout = async () => {
     try {
       await api.post("/auth/logout");
@@ -91,6 +111,10 @@ export function AuthProvider({ children }) {
         register,
         verifyOtp,
         resendOtp,
+        forgotPassword,
+        resendResetOtp,
+        verifyResetOtp,
+        resetPassword,
         logout,
         refreshUser,
       }}

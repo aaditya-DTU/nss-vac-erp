@@ -80,11 +80,19 @@ export default function Login() {
           <input
             type="password"
             required
-            className="input mt-1 mb-6"
+            className="input mt-1"
             placeholder="••••••••"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
+          <div className="text-right mb-6 mt-1">
+            <Link
+              to="/forgot-password"
+              className="text-xs text-primary-600 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
 
           <button
             type="submit"

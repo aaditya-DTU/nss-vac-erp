@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import LandingPage from './pages/LandingPage';
 import Leaderboard from './pages/Leaderboard';
 import Announcements from './pages/Announcements';
@@ -36,6 +37,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/about" element={<LandingPage />} />
       <Route path="/verify" element={<VerifyCertificate />} />
       <Route path="/verify/:certificateId" element={<VerifyCertificate />} />

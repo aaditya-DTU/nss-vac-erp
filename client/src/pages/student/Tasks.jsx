@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import Layout from '../../components/Layout';
+import { usePageTitle } from '../../context/PageTitleContext';
 import api from '../../api/axios';
 import { format } from 'date-fns';
 import clsx from 'clsx';
@@ -14,6 +14,7 @@ const statusStyles = {
 };
 
 export default function Tasks() {
+  usePageTitle("My Tasks");
   const [tasks, setTasks] = useState([]);
 
   useEffect(() => {
@@ -21,7 +22,7 @@ export default function Tasks() {
   }, []);
 
   return (
-    <Layout title="My Tasks">
+    <>
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
         {tasks.map((t) => {
           const status = t.mySubmission?.status || 'none';
@@ -45,6 +46,6 @@ export default function Tasks() {
         })}
         {tasks.length === 0 && <p className="text-ink/50">No tasks assigned yet.</p>}
       </div>
-    </Layout>
+    </>
   );
 }

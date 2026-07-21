@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import Layout from '../components/Layout';
+import { usePageTitle } from '../context/PageTitleContext';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { Trophy } from 'lucide-react';
@@ -8,13 +8,14 @@ import clsx from 'clsx';
 const medalColors = ['text-amber-500', 'text-slate-400', 'text-amber-700'];
 
 export default function Leaderboard() {
+  usePageTitle("Leaderboard");
   const { user } = useAuth();
   const [list, setList] = useState([]);
 
   useEffect(() => { api.get('/dashboard/leaderboard').then((r) => setList(r.data.leaderboard)); }, []);
 
   return (
-    <Layout title="Leaderboard">
+    <>
       <div className="card max-w-2xl">
         <ul className="divide-y divide-primary-50">
           {list.map((s) => (
@@ -34,6 +35,6 @@ export default function Leaderboard() {
           ))}
         </ul>
       </div>
-    </Layout>
+    </>
   );
 }

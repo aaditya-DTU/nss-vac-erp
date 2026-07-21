@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import Layout from '../../components/Layout';
+import { usePageTitle } from '../../context/PageTitleContext';
 import api from '../../api/axios';
 import { format } from 'date-fns';
 import { Plus, X } from 'lucide-react';
@@ -11,6 +11,7 @@ const emptyForm = {
 };
 
 export default function AdminTasks() {
+  usePageTitle("Task Management");
   const [tasks, setTasks] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -61,7 +62,7 @@ export default function AdminTasks() {
   };
 
   return (
-    <Layout title="Task Management">
+    <>
       <div className="flex justify-end mb-4">
         <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm(true)}>
           <Plus size={18} /> New task
@@ -179,6 +180,6 @@ export default function AdminTasks() {
           </div>
         </div>
       )}
-    </Layout>
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import Layout from '../components/Layout';
+import { usePageTitle } from '../context/PageTitleContext';
 import api from '../api/axios';
 import { Award, Download, ShieldCheck, Loader2, CalendarDays, Hash, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -44,6 +44,7 @@ function ShieldCheckPath() {
 }
 
 export default function Certificate() {
+  usePageTitle("My Certificate");
   const [cert, setCert] = useState(null);
   const [status, setStatus] = useState('loading'); // loading | not-issued | issued
 
@@ -58,7 +59,7 @@ export default function Certificate() {
   }, []);
 
   return (
-    <Layout title="My Certificate">
+    <>
       {status === 'loading' && (
         <div className="card max-w-2xl mx-auto py-16 flex flex-col items-center gap-3 text-ink/50">
           <Loader2 size={28} className="animate-spin text-primary-500" />
@@ -171,6 +172,6 @@ export default function Certificate() {
           </p>
         </div>
       )}
-    </Layout>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import Layout from "../components/Layout";
+import { usePageTitle } from "../context/PageTitleContext";
 import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import { format } from "date-fns";
@@ -28,6 +28,7 @@ const toDatetimeLocal = (dateStr) => {
 };
 
 export default function Events() {
+  usePageTitle("Events");
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [checkinCode, setCheckinCode] = useState("");
@@ -138,7 +139,7 @@ export default function Events() {
   };
 
   return (
-    <Layout title="Events">
+    <>
       {user.role === "admin" && (
         <div className="flex justify-end mb-4">
           <button
@@ -414,6 +415,6 @@ export default function Events() {
           </form>
         </div>
       )}
-    </Layout>
+    </>
   );
 }

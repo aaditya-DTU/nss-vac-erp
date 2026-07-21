@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import Layout from '../../components/Layout';
+import { usePageTitle } from '../../context/PageTitleContext';
 import api from '../../api/axios';
 import { format } from 'date-fns';
 import { HelpCircle, Plus, X, Check, MessageCircleQuestion } from 'lucide-react';
@@ -11,6 +11,7 @@ import { HelpCircle, Plus, X, Check, MessageCircleQuestion } from 'lucide-react'
 // gap straight into a real FAQ — one click, no separate FAQ-management page
 // needed for the common case.
 export default function AdminUnanswered() {
+  usePageTitle("Chatbot Gaps");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [faqFormFor, setFaqFormFor] = useState(null);
@@ -52,7 +53,7 @@ export default function AdminUnanswered() {
   };
 
   return (
-    <Layout title="Chatbot Gaps">
+    <>
       <p className="text-sm text-ink/60 mb-5 max-w-2xl">
         Questions NSS Saathi couldn't answer confidently, grouped by how often they come up. Turn any of these into a
         real FAQ and the chatbot gets smarter immediately — no redeploy needed.
@@ -125,6 +126,6 @@ export default function AdminUnanswered() {
           </form>
         </div>
       )}
-    </Layout>
+    </>
   );
 }

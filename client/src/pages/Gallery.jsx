@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import Layout from '../components/Layout';
+import { usePageTitle } from '../context/PageTitleContext';
 import api from '../api/axios';
 import { format } from 'date-fns';
 import { Image as ImageIcon, X } from 'lucide-react';
@@ -13,6 +13,7 @@ const PAGE_SIZE = 24;
 // just surfaces every approved photo in one browsable, shared gallery
 // instead of leaving them buried inside individual task review screens.
 export default function Gallery() {
+  usePageTitle("Gallery");
   const [photos, setPhotos] = useState([]);
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
@@ -49,7 +50,7 @@ export default function Gallery() {
   };
 
   return (
-    <Layout title="Gallery">
+    <>
       <div className="flex flex-wrap gap-2 mb-5">
         <button
           onClick={() => setCategory('')}
@@ -114,6 +115,6 @@ export default function Gallery() {
           </div>
         </div>
       )}
-    </Layout>
+    </>
   );
 }

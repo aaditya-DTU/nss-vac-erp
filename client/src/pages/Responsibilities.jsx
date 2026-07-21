@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import Layout from '../components/Layout';
+import { usePageTitle } from '../context/PageTitleContext';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
@@ -17,6 +17,7 @@ const statusStyles = {
 };
 
 export default function Responsibilities() {
+  usePageTitle("Responsibilities");
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [students, setStudents] = useState([]);
@@ -68,7 +69,7 @@ export default function Responsibilities() {
   };
 
   return (
-    <Layout title="Responsibilities">
+    <>
       {user.role === 'admin' && (
         <div className="flex justify-end mb-4">
           <button className="btn-primary flex items-center gap-2" onClick={() => setShowForm(true)}>
@@ -146,6 +147,6 @@ export default function Responsibilities() {
           </form>
         </div>
       )}
-    </Layout>
+    </>
   );
 }

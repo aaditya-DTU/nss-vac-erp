@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import Layout from '../../components/Layout';
+import { usePageTitle } from '../../context/PageTitleContext';
 import api from '../../api/axios';
 import { ShieldCheck, ShieldX, Search } from 'lucide-react';
 import { format } from 'date-fns';
@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 // coordinator can verify a certificate without leaving the app or logging
 // out to reach the public page.
 export default function AdminVerifyCertificate() {
+  usePageTitle("Verify Certificate");
   const [id, setId] = useState('');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -30,7 +31,7 @@ export default function AdminVerifyCertificate() {
   };
 
   return (
-    <Layout title="Verify Certificate">
+    <>
       <div className="card max-w-md">
         <p className="text-sm text-ink/60 mb-4">
           Look up any NSS VAC certificate by its ID to confirm it's genuine — the same check anyone gets from the QR code printed on the certificate.
@@ -71,6 +72,6 @@ export default function AdminVerifyCertificate() {
           )
         )}
       </div>
-    </Layout>
+    </>
   );
 }

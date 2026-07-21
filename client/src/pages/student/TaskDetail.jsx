@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import Layout from '../../components/Layout';
+import { usePageTitle } from '../../context/PageTitleContext';
 import api from '../../api/axios';
 import { format } from 'date-fns';
 
@@ -40,12 +40,14 @@ export default function TaskDetail() {
     }
   };
 
-  if (!task) return <Layout title="Task"><p className="text-ink/50">Loading…</p></Layout>;
+  usePageTitle(task ? task.title : 'Task');
+
+  if (!task) return <p className="text-ink/50">Loading…</p>;
 
   const locked = mySubmission?.status === 'approved';
 
   return (
-    <Layout title={task.title}>
+    <>
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="card lg:col-span-2">
           <span className="badge bg-primary-50 text-primary-700 capitalize mb-3">{task.category.replace('_', ' ')}</span>
@@ -93,6 +95,6 @@ export default function TaskDetail() {
           )}
         </div>
       </div>
-    </Layout>
+    </>
   );
 }

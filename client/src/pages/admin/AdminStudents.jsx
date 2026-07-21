@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import Layout from '../../components/Layout';
+import { usePageTitle } from '../../context/PageTitleContext';
 import api from '../../api/axios';
 import { format } from 'date-fns';
 import { Upload, Award, FileSpreadsheet, Activity, X, MapPin, CheckCircle2 } from 'lucide-react';
 
 export default function AdminStudents() {
+  usePageTitle("Students");
   const [students, setStudents] = useState([]);
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
@@ -76,7 +77,7 @@ export default function AdminStudents() {
   };
 
   return (
-    <Layout title="Students">
+    <>
       <div className="flex flex-col sm:flex-row gap-3 justify-between mb-5">
         <input
           className="input sm:w-72"
@@ -189,6 +190,6 @@ export default function AdminStudents() {
           </div>
         </div>
       )}
-    </Layout>
+    </>
   );
 }

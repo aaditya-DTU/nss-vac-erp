@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Link } from 'react-router-dom';
-import Layout from '../../components/Layout';
+import { usePageTitle } from '../../context/PageTitleContext';
 import api from '../../api/axios';
 import { Users, ListChecks, FileClock, CalendarDays } from 'lucide-react';
 
@@ -22,12 +22,15 @@ export default function AdminDashboard() {
 
   useEffect(() => { api.get('/dashboard/admin').then((r) => setData(r.data)); }, []);
 
-  if (!data) return <Layout title="Admin Dashboard"><p className="text-ink/50">Loading…</p></Layout>;
+  // Hook must run every render regardless of the loading early-return below.
+  usePageTitle(data ? 'NSS Command Centre' : 'Admin Dashboard');
+
+  if (!data) return <p className="text-ink/50">Loading…</p>;
 
   const { stats, categoryBreakdown, recentSubmissions } = data;
 
   return (
-    <Layout title="NSS Command Centre">
+    <>
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-5">
         <StatCard icon={Users} label="Active students" value={stats.totalStudents} />
         <StatCard icon={ListChecks} label="Active tasks" value={stats.activeTasks} />
@@ -71,6 +74,6 @@ export default function AdminDashboard() {
       <div className="mt-6 flex gap-4 text-sm text-primary-700">
         <div className="card !py-3 !px-4">Total community hours logged: <strong>{stats.totalCommunityHours}</strong></div>
       </div>
-    </Layout>
+    </>
   );
 }

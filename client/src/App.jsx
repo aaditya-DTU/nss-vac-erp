@@ -1,7 +1,8 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
+import ProtectedRoute, { RequireAuth } from './components/ProtectedRoute';
+import Layout from './components/Layout';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -42,30 +43,40 @@ export default function App() {
       <Route path="/verify" element={<VerifyCertificate />} />
       <Route path="/verify/:certificateId" element={<VerifyCertificate />} />
 
-      {/* Student routes */}
-      <Route path="/student" element={<ProtectedRoute roles={['student']}><StudentDashboard /></ProtectedRoute>} />
-      <Route path="/tasks" element={<ProtectedRoute roles={['student']}><Tasks /></ProtectedRoute>} />
-      <Route path="/tasks/:id" element={<ProtectedRoute roles={['student']}><TaskDetail /></ProtectedRoute>} />
-      <Route path="/certificate" element={<ProtectedRoute roles={['student']}><Certificate /></ProtectedRoute>} />
-      <Route path="/events/:id/join" element={<ProtectedRoute roles={['student']}><EventJoin /></ProtectedRoute>} />
+      {/* Everything below requires auth and shares one persistent Sidebar/Topbar/
+          socket connection via <Layout/>'s <Outlet/> — RequireAuth and Layout
+          each mount ONCE, not on every navigation between these pages. */}
+      <Route element={<RequireAuth />}>
+        {/* Deliberately outside <Layout/> — no Sidebar/Topbar chrome, opens
+            fast and clean straight from a phone camera QR scan. */}
+        <Route path="/events/:id/join" element={<ProtectedRoute roles={['student']}><EventJoin /></ProtectedRoute>} />
 
-      {/* Admin routes */}
-      <Route path="/admin" element={<ProtectedRoute roles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-      <Route path="/admin/tasks" element={<ProtectedRoute roles={['admin']}><AdminTasks /></ProtectedRoute>} />
-      <Route path="/admin/students" element={<ProtectedRoute roles={['admin']}><AdminStudents /></ProtectedRoute>} />
-      <Route path="/admin/events" element={<ProtectedRoute roles={['admin']}><Events /></ProtectedRoute>} />
-      <Route path="/admin/verify-certificate" element={<ProtectedRoute roles={['admin']}><AdminVerifyCertificate /></ProtectedRoute>} />
-      <Route path="/admin/chatbot-gaps" element={<ProtectedRoute roles={['admin']}><AdminUnanswered /></ProtectedRoute>} />
+        <Route element={<Layout />}>
+          {/* Student routes */}
+          <Route path="/student" element={<ProtectedRoute roles={['student']}><StudentDashboard /></ProtectedRoute>} />
+          <Route path="/tasks" element={<ProtectedRoute roles={['student']}><Tasks /></ProtectedRoute>} />
+          <Route path="/tasks/:id" element={<ProtectedRoute roles={['student']}><TaskDetail /></ProtectedRoute>} />
+          <Route path="/certificate" element={<ProtectedRoute roles={['student']}><Certificate /></ProtectedRoute>} />
 
-      {/* Shared routes */}
-      <Route path="/leaderboard" element={<ProtectedRoute roles={['admin', 'student']}><Leaderboard /></ProtectedRoute>} />
-      <Route path="/announcements" element={<ProtectedRoute roles={['admin', 'student']}><Announcements /></ProtectedRoute>} />
-      <Route path="/gallery" element={<ProtectedRoute roles={['admin', 'student']}><Gallery /></ProtectedRoute>} />
-      <Route path="/responsibilities" element={<ProtectedRoute roles={['admin', 'student']}><Responsibilities /></ProtectedRoute>} />
-      <Route path="/ideas" element={<ProtectedRoute roles={['admin', 'student']}><Ideas /></ProtectedRoute>} />
-      <Route path="/events" element={<ProtectedRoute roles={['admin', 'student']}><Events /></ProtectedRoute>} />
+          {/* Admin routes */}
+          <Route path="/admin" element={<ProtectedRoute roles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/tasks" element={<ProtectedRoute roles={['admin']}><AdminTasks /></ProtectedRoute>} />
+          <Route path="/admin/students" element={<ProtectedRoute roles={['admin']}><AdminStudents /></ProtectedRoute>} />
+          <Route path="/admin/events" element={<ProtectedRoute roles={['admin']}><Events /></ProtectedRoute>} />
+          <Route path="/admin/verify-certificate" element={<ProtectedRoute roles={['admin']}><AdminVerifyCertificate /></ProtectedRoute>} />
+          <Route path="/admin/chatbot-gaps" element={<ProtectedRoute roles={['admin']}><AdminUnanswered /></ProtectedRoute>} />
 
-      <Route path="*" element={<ProtectedRoute><RoleHome /></ProtectedRoute>} />
+          {/* Shared routes */}
+          <Route path="/leaderboard" element={<ProtectedRoute roles={['admin', 'student']}><Leaderboard /></ProtectedRoute>} />
+          <Route path="/announcements" element={<ProtectedRoute roles={['admin', 'student']}><Announcements /></ProtectedRoute>} />
+          <Route path="/gallery" element={<ProtectedRoute roles={['admin', 'student']}><Gallery /></ProtectedRoute>} />
+          <Route path="/responsibilities" element={<ProtectedRoute roles={['admin', 'student']}><Responsibilities /></ProtectedRoute>} />
+          <Route path="/ideas" element={<ProtectedRoute roles={['admin', 'student']}><Ideas /></ProtectedRoute>} />
+          <Route path="/events" element={<ProtectedRoute roles={['admin', 'student']}><Events /></ProtectedRoute>} />
+
+          <Route path="*" element={<RoleHome />} />
+        </Route>
+      </Route>
     </Routes>
   );
 }

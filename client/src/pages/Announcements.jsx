@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import Layout from '../components/Layout';
+import { usePageTitle } from '../context/PageTitleContext';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -18,6 +18,7 @@ const categoryStyles = {
 const emptyForm = { title: '', content: '', category: 'general', pinned: false, expiresAt: '' };
 
 export default function Announcements() {
+  usePageTitle("Announcements");
   const { user } = useAuth();
   const socket = useSocket();
   const [announcements, setAnnouncements] = useState([]);
@@ -84,7 +85,7 @@ export default function Announcements() {
   };
 
   return (
-    <Layout title="Announcements">
+    <>
       {user.role === 'admin' && (
         <div className="flex justify-end mb-4">
           <button className="btn-primary flex items-center gap-2" onClick={openCreate}>
@@ -172,6 +173,6 @@ export default function Announcements() {
           </form>
         </div>
       )}
-    </Layout>
+    </>
   );
 }

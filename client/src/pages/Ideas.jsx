@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import Layout from '../components/Layout';
+import { usePageTitle } from '../context/PageTitleContext';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
@@ -16,6 +16,7 @@ const statusStyles = {
 // "New ideas dene ke liye ek section" — students submit suggestions/opinions,
 // admins see everything submitted and can mark it reviewed/implemented.
 export default function Ideas() {
+  usePageTitle("Ideas & Suggestions");
   const { user } = useAuth();
   const [ideas, setIdeas] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -49,7 +50,7 @@ export default function Ideas() {
   };
 
   return (
-    <Layout title="Ideas & Suggestions">
+    <>
       <div className="flex justify-between items-center mb-5">
         <p className="text-sm text-ink/60">
           {user.role === 'admin' ? 'Every idea submitted by students, most recent first.' : 'Got a suggestion for the NSS program? Submit it here.'}
@@ -116,6 +117,6 @@ export default function Ideas() {
           </form>
         </div>
       )}
-    </Layout>
+    </>
   );
 }

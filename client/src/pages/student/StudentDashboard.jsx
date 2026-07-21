@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import Layout from '../../components/Layout';
+import { usePageTitle } from '../../context/PageTitleContext';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
@@ -42,12 +42,14 @@ export default function StudentDashboard() {
     return () => socket.off('ledger:update', load);
   }, [socket]);
 
-  if (!data) return <Layout title="Dashboard"><p className="text-ink/50">Loading…</p></Layout>;
+  usePageTitle(data ? `Welcome, ${user.name.split(' ')[0]}` : 'Dashboard');
+
+  if (!data) return <p className="text-ink/50">Loading…</p>;
 
   const { stats, upcomingTasks } = data;
 
   return (
-    <Layout title={`Welcome, ${user.name.split(' ')[0]}`}>
+    <>
       <div className="flex items-center justify-end -mt-2 mb-4">
         <Link
           to="/about"
@@ -107,6 +109,6 @@ export default function StudentDashboard() {
           ))}
         </ul>
       </div>
-    </Layout>
+    </>
   );
 }

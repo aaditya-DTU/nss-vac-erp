@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
+import PasswordInput from "../components/PasswordInput";
 
 export default function Login() {
   const { login } = useAuth();
@@ -77,15 +78,14 @@ export default function Login() {
           />
 
           <label className="text-sm font-medium text-ink/70">Password</label>
-          <input
-            type="password"
-            required
-            className="input mt-1"
-            placeholder="••••••••"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-          />
-          <div className="text-right mb-6 mt-1">
+          <div className="mt-1 mb-1">
+            <PasswordInput
+              required
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+          </div>
+          <div className="text-right mb-6">
             <Link
               to="/forgot-password"
               className="text-xs text-primary-600 hover:underline"

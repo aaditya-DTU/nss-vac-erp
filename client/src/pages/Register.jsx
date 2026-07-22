@@ -3,6 +3,9 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck } from 'lucide-react';
+import PasswordInput from '../components/PasswordInput';
+import PasswordChecklist from '../components/PasswordChecklist';
+import { isPasswordValid } from '../utils/passwordValidation';
 
 const emptyForm = { name: '', email: '', password: '', rollNo: '', branch: '', year: '', section: '' };
 const RESEND_COOLDOWN = 60;
@@ -43,6 +46,12 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!isPasswordValid(form.password)) {
+      toast.error('Password doesn\'t meet all the requirements below');
+      return;
+    }
+
     setLoading(true);
     try {
       const data = await register(form);
@@ -150,7 +159,15 @@ export default function Register() {
           </div>
           <div className="col-span-2">
             <label className="text-sm font-medium text-ink/70">Password</label>
-            <input type="password" required minLength={6} className="input mt-1" value={form.password} onChange={set('password')} />
+            <div className="mt-1">
+              <PasswordInput
+                required
+                autoComplete="new-password"
+                value={form.password}
+                onChange={set('password')}
+              />
+            </div>
+            <PasswordChecklist password={form.password} />
           </div>
           <div>
             <label className="text-sm font-medium text-ink/70">Roll No.</label>

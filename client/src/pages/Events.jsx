@@ -6,6 +6,8 @@ import { useAuth } from "../context/AuthContext";
 import { format } from "date-fns";
 import { QRCodeSVG } from "qrcode.react";
 import { Plus, X, Copy, QrCode, CircleDot, CircleOff, Pencil, Crosshair, MapPin } from "lucide-react";
+import Ledger from "../components/ledger/Ledger";
+import LedgerSummaryModal from "../components/ledger/LedgerSummaryModal";
 
 const emptyForm = {
   title: "",
@@ -45,10 +47,40 @@ export default function Events() {
   // an event and checking in to it; there is no separate rotating code.
   const [createdEvent, setCreatedEvent] = useState(null);
 
+  // Past-events ledger: once an event's endTime has passed it moves out of
+  // the live grid and down into the ledger; clicking an entry there pops
+  // an overall summary (attendance list for admins, personal status for
+  // students).
+  const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerData, setLedgerData] = useState(null);
+
   const load = () => api.get("/events").then((r) => setEvents(r.data.events));
   useEffect(() => {
     load();
   }, []);
+
+  const openEventLedgerSummary = async (item) => {
+    const ev = events.find((e) => e._id === item.id);
+    if (!ev) return;
+    setLedgerOpen(true);
+    setLedgerLoading(true);
+    setLedgerData({ event: ev });
+    try {
+      if (user.role === "admin") {
+        const { data } = await api.get(`/events/${ev._id}/attendance`);
+        setLedgerData({ event: ev, attendance: data.attendance });
+      } else {
+        // Students don't have access to the full attendance roster — show
+        // them their own registration status instead.
+        setLedgerData({ event: ev, attendance: null });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to load summary");
+    } finally {
+      setLedgerLoading(false);
+    }
+  };
 
   const register = async (id) => {
     await api.post(`/events/${id}/register`);
@@ -210,6 +242,26 @@ export default function Events() {
     toast.success("Join link copied");
   };
 
+  const now = new Date();
+  const liveEvents = events.filter((ev) => new Date(ev.endTime) >= now);
+  const pastEvents = events.filter((ev) => new Date(ev.endTime) < now);
+
+  const ledgerItems = pastEvents
+    .sort((a, b) => new Date(b.endTime) - new Date(a.endTime))
+    .map((ev) => ({
+      id: ev._id,
+      title: ev.title,
+      meta: `${format(new Date(ev.startTime), "MMM d, yyyy")} · ${ev.location || "No location"}`,
+      badge:
+        user.role === "student"
+          ? ev.registeredStudents?.includes(user._id)
+            ? "Registered"
+            : undefined
+          : `${ev.registeredStudents?.length || 0} registered`,
+      badgeClass:
+        user.role === "student" ? "bg-green-50 text-green-700" : "bg-primary-50 text-primary-700",
+    }));
+
   return (
     <>
       {user.role === "admin" && (
@@ -224,7 +276,7 @@ export default function Events() {
       )}
 
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-        {events.map((ev) => (
+        {liveEvents.map((ev) => (
           <div key={ev._id} className="card">
             <p className="text-xs text-ink/50 mb-1">
               {format(new Date(ev.startTime), "MMM d, yyyy · p")}
@@ -306,8 +358,10 @@ export default function Events() {
             )}
           </div>
         ))}
-        {events.length === 0 && <p className="text-ink/50">No events yet.</p>}
+        {liveEvents.length === 0 && <p className="text-ink/50">No upcoming events.</p>}
       </div>
+
+      <Ledger title="Past events" items={ledgerItems} onItemClick={openEventLedgerSummary} />
 
       {/* Create/Edit event modal (admin) — same form serves both, based on
           whether editingId is set. */}
@@ -542,6 +596,61 @@ export default function Events() {
           </form>
         </div>
       )}
+
+      <LedgerSummaryModal
+        open={ledgerOpen}
+        onClose={() => {
+          setLedgerOpen(false);
+          setLedgerData(null);
+        }}
+        title={ledgerData?.event ? `${ledgerData.event.title} — summary` : ""}
+        subtitle={
+          ledgerData?.event
+            ? `${format(new Date(ledgerData.event.startTime), "MMM d, yyyy · p")} – ${format(new Date(ledgerData.event.endTime), "p")} · ${ledgerData.event.location || "No location"}`
+            : ""
+        }
+        loading={ledgerLoading}
+        stats={
+          ledgerData?.event
+            ? user.role === "admin"
+              ? [
+                  { label: "Registered", value: ledgerData.event.registeredStudents?.length || 0 },
+                  { label: "Attended", value: ledgerData.attendance?.length || 0 },
+                ]
+              : [
+                  { label: "Hours", value: ledgerData.event.hoursWorth },
+                  { label: "Points", value: ledgerData.event.pointsWorth },
+                ]
+            : []
+        }
+        rows={
+          user.role === "admin"
+            ? (ledgerData?.attendance || []).map((a) => ({
+                id: a._id,
+                primary: `${a.student?.name || "Unknown"} · ${a.student?.rollNo || "—"}`,
+                secondary: `${a.student?.branch || ""} ${a.student?.year ? `· Year ${a.student.year}` : ""}`.trim(),
+                badge: a.method,
+                badgeClass: a.method === "manual" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700",
+                note: `Checked in ${format(new Date(a.checkedInAt), "MMM d, p")}`,
+              }))
+            : ledgerData?.event
+              ? [
+                  {
+                    id: "me",
+                    primary: user.name,
+                    secondary: ledgerData.event.registeredStudents?.includes(user._id)
+                      ? "You registered for this event"
+                      : "You did not register for this event",
+                    badge: ledgerData.event.registeredStudents?.includes(user._id) ? "Registered" : "Not registered",
+                    badgeClass: ledgerData.event.registeredStudents?.includes(user._id)
+                      ? "bg-green-100 text-green-700"
+                      : "bg-ink/5 text-ink/50",
+                  },
+                ]
+              : []
+        }
+        emptyText="No one checked in for this event."
+      />
     </>
   );
 }

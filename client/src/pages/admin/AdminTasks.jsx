@@ -4,6 +4,15 @@ import { usePageTitle } from '../../context/PageTitleContext';
 import api from '../../api/axios';
 import { format } from 'date-fns';
 import { Plus, X, Pencil, Trash2 } from 'lucide-react';
+import Ledger from '../../components/ledger/Ledger';
+import LedgerSummaryModal from '../../components/ledger/LedgerSummaryModal';
+
+const statusBadgeClass = {
+  approved: 'bg-green-100 text-green-700',
+  pending: 'bg-amber-100 text-amber-700',
+  rejected: 'bg-red-100 text-red-700',
+  resubmit_requested: 'bg-orange-100 text-orange-700',
+};
 
 const emptyForm = {
   title: '', description: '', category: 'other', points: 10, hoursWorth: 2,
@@ -18,6 +27,13 @@ export default function AdminTasks() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [submissions, setSubmissions] = useState([]);
 
+  // Past-tasks ledger: clicking an entry pops a read-only overall summary
+  // (assigned/submitted/approved counts + every student's status), separate
+  // from the live "Review submissions" modal used for actionable review.
+  const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerData, setLedgerData] = useState(null);
+
   const loadTasks = () => api.get('/tasks').then((r) => setTasks(r.data.tasks));
   useEffect(() => { loadTasks(); }, []);
 
@@ -25,6 +41,24 @@ export default function AdminTasks() {
     setSelectedTask(task);
     const { data } = await api.get(`/tasks/${task._id}/submissions`);
     setSubmissions(data.submissions);
+  };
+
+  // Opens the ledger summary for a past (deadline-passed) task: overall
+  // stats plus every student's final submission status.
+  const openTaskLedgerSummary = async (item) => {
+    const task = tasks.find((t) => t._id === item.id);
+    if (!task) return;
+    setLedgerOpen(true);
+    setLedgerLoading(true);
+    setLedgerData({ task });
+    try {
+      const { data } = await api.get(`/tasks/${task._id}/submissions`);
+      setLedgerData({ task, submissions: data.submissions });
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load summary');
+    } finally {
+      setLedgerLoading(false);
+    }
   };
 
   const review = async (subId, decision) => {
@@ -107,7 +141,22 @@ export default function AdminTasks() {
     }
   };
 
-  const visibleTasks = tasks.filter((t) => t.status !== 'archived');
+  const notArchived = tasks.filter((t) => t.status !== 'archived');
+  const now = new Date();
+  // Once a task's deadline has passed it drops out of the live grid and
+  // into the ledger below — still reachable, just out of the way.
+  const visibleTasks = notArchived.filter((t) => new Date(t.deadline) >= now);
+  const pastTasks = notArchived.filter((t) => new Date(t.deadline) < now);
+
+  const ledgerItems = pastTasks
+    .sort((a, b) => new Date(b.deadline) - new Date(a.deadline))
+    .map((t) => ({
+      id: t._id,
+      title: t.title,
+      meta: `Due ${format(new Date(t.deadline), 'MMM d, yyyy')} · ${t.stats.submittedCount}/${t.stats.assignedCount} submitted`,
+      badge: `${t.stats.approvedCount} approved`,
+      badgeClass: 'bg-green-50 text-green-700',
+    }));
 
   usePageTitle('Admin tasks');
 
@@ -149,8 +198,10 @@ export default function AdminTasks() {
             </div>
           </div>
         ))}
-        {visibleTasks.length === 0 && <p className="text-ink/50">No tasks yet.</p>}
+        {visibleTasks.length === 0 && <p className="text-ink/50">No active tasks.</p>}
       </div>
+
+      <Ledger title="Past tasks" items={ledgerItems} onItemClick={openTaskLedgerSummary} />
 
       {showForm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-30 p-4">
@@ -247,6 +298,31 @@ export default function AdminTasks() {
           </div>
         </div>
       )}
+
+      <LedgerSummaryModal
+        open={ledgerOpen}
+        onClose={() => { setLedgerOpen(false); setLedgerData(null); }}
+        title={ledgerData?.task ? `${ledgerData.task.title} — summary` : ''}
+        subtitle={ledgerData?.task ? `Deadline was ${format(new Date(ledgerData.task.deadline), 'MMM d, yyyy')}` : ''}
+        loading={ledgerLoading}
+        stats={
+          ledgerData?.task
+            ? [
+                { label: 'Assigned', value: ledgerData.task.stats.assignedCount },
+                { label: 'Submitted', value: ledgerData.task.stats.submittedCount },
+                { label: 'Approved', value: ledgerData.task.stats.approvedCount },
+              ]
+            : []
+        }
+        rows={(ledgerData?.submissions || []).map((s) => ({
+          id: s._id,
+          primary: `${s.student?.name || 'Unknown'} · ${s.student?.rollNo || '—'}`,
+          secondary: s.remarks || undefined,
+          badge: s.status.replace('_', ' '),
+          badgeClass: statusBadgeClass[s.status],
+        }))}
+        emptyText="No students submitted this task."
+      />
     </>
   );
 }

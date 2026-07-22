@@ -3,7 +3,6 @@ const AuditLog = require('../models/AuditLog');
 const Attendance = require('../models/Attendance');
 const Submission = require('../models/Submission');
 const PointsLedger = require('../models/PointsLedger');
-const { parse } = require('csv-parse/sync');
 
 // Admin-provisioned account creation (e.g. adding another NSS admin/teacher).
 exports.createUser = async (req, res, next) => {
@@ -88,7 +87,7 @@ exports.getStudentActivity = async (req, res, next) => {
 
 exports.updateUser = async (req, res, next) => {
   try {
-    const allowed = ['name', 'role', 'branch', 'year', 'section', 'isActive', 'rollNo', 'phone'];
+    const allowed = ['name', 'email', 'role', 'branch', 'year', 'section', 'isActive', 'rollNo', 'phone'];
     const updates = {};
     allowed.forEach((k) => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
 
@@ -108,49 +107,6 @@ exports.deleteUser = async (req, res, next) => {
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
     await AuditLog.create({ actor: req.user._id, action: 'user.deactivate', targetType: 'User', targetId: user._id });
     res.json({ success: true, message: 'Student account deactivated.' });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// Bulk-onboard an entire NSS batch from a CSV: name,email,password,rollNo,branch,year,section
-exports.bulkImport = async (req, res, next) => {
-  try {
-    if (!req.file) return res.status(400).json({ success: false, message: 'CSV file is required.' });
-
-    const records = parse(req.file.buffer.toString('utf-8'), { columns: true, skip_empty_lines: true, trim: true });
-
-    const results = { created: 0, skipped: 0, errors: [] };
-    for (const row of records) {
-      try {
-        if (!row.email || !row.name) {
-          results.errors.push({ row, reason: 'Missing name or email' });
-          continue;
-        }
-        const exists = await User.findOne({ email: row.email.toLowerCase() });
-        if (exists) {
-          results.skipped++;
-          continue;
-        }
-        await User.create({
-          name: row.name,
-          email: row.email,
-          password: row.password || 'nss@dtu123',
-          rollNo: row.rollNo,
-          branch: row.branch,
-          year: row.year ? Number(row.year) : undefined,
-          section: row.section,
-          role: 'student',
-          isVerified: true,
-        });
-        results.created++;
-      } catch (e) {
-        results.errors.push({ row, reason: e.message });
-      }
-    }
-
-    await AuditLog.create({ actor: req.user._id, action: 'user.bulkImport', meta: results });
-    res.json({ success: true, results });
   } catch (err) {
     next(err);
   }

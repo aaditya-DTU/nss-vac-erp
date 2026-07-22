@@ -3,7 +3,17 @@ import toast from 'react-hot-toast';
 import { usePageTitle } from '../../context/PageTitleContext';
 import api from '../../api/axios';
 import { format } from 'date-fns';
-import { Upload, Award, FileSpreadsheet, Activity, X, MapPin, CheckCircle2 } from 'lucide-react';
+import {
+  Award,
+  FileSpreadsheet,
+  Activity,
+  X,
+  MapPin,
+  CheckCircle2,
+  Pencil,
+  Power,
+  Save,
+} from 'lucide-react';
 
 export default function AdminStudents() {
   usePageTitle("Students");
@@ -11,28 +21,18 @@ export default function AdminStudents() {
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
 
-  // Attendance/contribution tracker — drills into one student's full
-  // activity picture (event check-ins with timing + approved task history).
-  const [activityFor, setActivityFor] = useState(null); // student being viewed
+  // Combined admin panel — clicking a row opens this. Shows editable
+  // profile fields, current status, deactivate toggle, and the
+  // student's full participation/activity history.
+  const [panelFor, setPanelFor] = useState(null); // student being viewed/edited
   const [activity, setActivity] = useState(null);
   const [loadingActivity, setLoadingActivity] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [togglingStatus, setTogglingStatus] = useState(false);
 
   const load = () => api.get('/users', { params: { role: 'student', search } }).then((r) => setStudents(r.data.users));
   useEffect(() => { load(); }, [search]);
-
-  const handleImport = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const form = new FormData();
-    form.append('file', file);
-    try {
-      const { data } = await api.post('/users/bulk-import', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      toast.success(`Imported ${data.results.created} students, skipped ${data.results.skipped}`);
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Import failed');
-    }
-  };
 
   const issueCertificate = async (studentId) => {
     try {
@@ -63,8 +63,15 @@ export default function AdminStudents() {
     }
   };
 
-  const openActivity = async (student) => {
-    setActivityFor(student);
+  const openPanel = async (student) => {
+    setPanelFor(student);
+    setEditForm({
+      name: student.name || '',
+      rollNo: student.rollNo || '',
+      branch: student.branch || '',
+      year: student.year || '',
+      email: student.email || '',
+    });
     setLoadingActivity(true);
     try {
       const { data } = await api.get(`/users/${student._id}/activity`);
@@ -73,6 +80,43 @@ export default function AdminStudents() {
       toast.error('Could not load activity');
     } finally {
       setLoadingActivity(false);
+    }
+  };
+
+  const closePanel = () => {
+    setPanelFor(null);
+    setActivity(null);
+    setEditForm(null);
+  };
+
+  const saveEdit = async () => {
+    setSaving(true);
+    try {
+      const { data } = await api.patch(`/users/${panelFor._id}`, editForm);
+      toast.success('Student updated');
+      setStudents((prev) => prev.map((s) => (s._id === panelFor._id ? { ...s, ...data.user } : s)));
+      setPanelFor((prev) => ({ ...prev, ...data.user }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Update failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleStatus = async (student) => {
+    const next = !student.isActive;
+    const label = next ? 'activate' : 'deactivate';
+    if (!window.confirm(`Are you sure you want to ${label} ${student.name}?`)) return;
+    setTogglingStatus(true);
+    try {
+      const { data } = await api.patch(`/users/${student._id}`, { isActive: next });
+      toast.success(`Student ${next ? 'activated' : 'deactivated'}`);
+      setStudents((prev) => prev.map((s) => (s._id === student._id ? { ...s, isActive: data.user.isActive } : s)));
+      setPanelFor((prev) => (prev && prev._id === student._id ? { ...prev, isActive: data.user.isActive } : prev));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not update status');
+    } finally {
+      setTogglingStatus(false);
     }
   };
 
@@ -85,10 +129,6 @@ export default function AdminStudents() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <label className="btn-secondary flex items-center gap-2 cursor-pointer">
-          <Upload size={16} /> Bulk import CSV
-          <input type="file" accept=".csv" hidden onChange={handleImport} />
-        </label>
         <button onClick={exportReport} disabled={exporting} className="btn-secondary flex items-center gap-2">
           <FileSpreadsheet size={16} /> {exporting ? 'Generating…' : 'Export NSS report'}
         </button>
@@ -103,24 +143,41 @@ export default function AdminStudents() {
               <th className="py-2 pr-4">Branch/Year</th>
               <th className="py-2 pr-4">Hours</th>
               <th className="py-2 pr-4">Points</th>
+              <th className="py-2 pr-4">Status</th>
               <th className="py-2 pr-4"></th>
             </tr>
           </thead>
           <tbody>
             {students.map((s) => (
-              <tr key={s._id} className="border-b border-primary-50 last:border-0">
+              <tr
+                key={s._id}
+                onClick={() => openPanel(s)}
+                className="border-b border-primary-50 last:border-0 cursor-pointer hover:bg-primary-50/50 transition-colors"
+              >
                 <td className="py-2.5 pr-4 font-medium">{s.name}</td>
                 <td className="py-2.5 pr-4 text-ink/60">{s.rollNo}</td>
                 <td className="py-2.5 pr-4 text-ink/60">{s.branch} · Y{s.year}</td>
                 <td className="py-2.5 pr-4">{s.totalHours}</td>
                 <td className="py-2.5 pr-4">{s.totalPoints}</td>
-                <td className="py-2.5 pr-4 flex items-center gap-3">
-                  <button onClick={() => openActivity(s)} className="text-primary-600 hover:underline flex items-center gap-1 text-xs">
-                    <Activity size={14} /> Attendance
-                  </button>
-                  <button onClick={() => issueCertificate(s._id)} className="text-primary-600 hover:underline flex items-center gap-1 text-xs">
-                    <Award size={14} /> Certificate
-                  </button>
+                <td className="py-2.5 pr-4">
+                  <span className="inline-flex items-center gap-1.5 text-xs">
+                    <input type="checkbox" checked={!!s.isActive} readOnly className="accent-primary-600 pointer-events-none" />
+                    {s.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="py-2.5 pr-4" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => issueCertificate(s._id)} className="text-primary-600 hover:underline flex items-center gap-1 text-xs">
+                      <Award size={14} /> Certificate
+                    </button>
+                    <button
+                      onClick={() => toggleStatus(s)}
+                      disabled={togglingStatus}
+                      className={`hover:underline flex items-center gap-1 text-xs ${s.isActive ? 'text-red-600' : 'text-green-600'}`}
+                    >
+                      <Power size={14} /> {s.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -129,17 +186,55 @@ export default function AdminStudents() {
         {students.length === 0 && <p className="text-ink/50 text-sm py-4 text-center">No students found.</p>}
       </div>
 
-      {/* Attendance/contribution tracker */}
-      {activityFor && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-30 p-4" onClick={() => { setActivityFor(null); setActivity(null); }}>
+      {/* Combined edit + participation panel */}
+      {panelFor && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-30 p-4" onClick={closePanel}>
           <div className="card w-full max-w-2xl max-h-[85vh] overflow-y-auto relative" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => { setActivityFor(null); setActivity(null); }} className="absolute right-4 top-4 text-ink/40 hover:text-ink">
+            <button onClick={closePanel} className="absolute right-4 top-4 text-ink/40 hover:text-ink">
               <X size={20} />
             </button>
-            <h3 className="font-display text-xl text-primary-900 mb-1">{activityFor.name}</h3>
-            <p className="text-xs text-ink/50 mb-4">{activityFor.rollNo} · {activityFor.branch} · Y{activityFor.year}</p>
 
-            {loadingActivity && <p className="text-sm text-ink/50">Loading…</p>}
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-display text-xl text-primary-900">{panelFor.name}</h3>
+              <span className="inline-flex items-center gap-1 text-xs">
+                <input type="checkbox" checked={!!panelFor.isActive} readOnly className="accent-primary-600 pointer-events-none" />
+                {panelFor.isActive ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            <p className="text-xs text-ink/50 mb-4">{panelFor.rollNo} · {panelFor.branch} · Y{panelFor.year}</p>
+
+            {/* Edit form */}
+            {editForm && (
+              <div className="mb-6 border border-primary-100 rounded-xl p-4">
+                <p className="text-sm font-semibold text-ink mb-3 flex items-center gap-1.5"><Pencil size={14} /> Edit profile</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <input className="input" placeholder="Name" value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+                  <input className="input" placeholder="Roll No." value={editForm.rollNo}
+                    onChange={(e) => setEditForm({ ...editForm, rollNo: e.target.value })} />
+                  <input className="input" placeholder="Branch" value={editForm.branch}
+                    onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })} />
+                  <input className="input" placeholder="Year" value={editForm.year}
+                    onChange={(e) => setEditForm({ ...editForm, year: e.target.value })} />
+                  <input className="input col-span-2" placeholder="Email" value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+                </div>
+                <div className="flex items-center gap-3 mt-3">
+                  <button onClick={saveEdit} disabled={saving} className="btn-primary flex items-center gap-2 text-xs">
+                    <Save size={14} /> {saving ? 'Saving…' : 'Save changes'}
+                  </button>
+                  <button
+                    onClick={() => toggleStatus(panelFor)}
+                    disabled={togglingStatus}
+                    className={`flex items-center gap-2 text-xs hover:underline ${panelFor.isActive ? 'text-red-600' : 'text-green-600'}`}
+                  >
+                    <Power size={14} /> {panelFor.isActive ? 'Deactivate student' : 'Activate student'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {loadingActivity && <p className="text-sm text-ink/50">Loading activity…</p>}
 
             {activity && (
               <>
@@ -158,7 +253,7 @@ export default function AdminStudents() {
                   </div>
                 </div>
 
-                <p className="text-sm font-semibold text-ink mb-2">Event attendance</p>
+                <p className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><Activity size={14} /> Event attendance</p>
                 <ul className="space-y-2 mb-6">
                   {activity.attendance.map((a) => (
                     <li key={a._id} className="flex items-center justify-between text-sm border-b border-primary-50 pb-2">

@@ -22,8 +22,9 @@ export default function AdminStudents() {
   const [exporting, setExporting] = useState(false);
 
   // Combined admin panel — clicking a row opens this. Shows editable
-  // profile fields, current status, deactivate toggle, and the
-  // student's full participation/activity history.
+  // profile fields, the student's full participation/activity history,
+  // and a single deactivate/activate button (kept out of the table row
+  // to avoid cluttering the strip).
   const [panelFor, setPanelFor] = useState(null); // student being viewed/edited
   const [activity, setActivity] = useState(null);
   const [loadingActivity, setLoadingActivity] = useState(false);
@@ -143,7 +144,6 @@ export default function AdminStudents() {
               <th className="py-2 pr-4">Branch/Year</th>
               <th className="py-2 pr-4">Hours</th>
               <th className="py-2 pr-4">Points</th>
-              <th className="py-2 pr-4">Status</th>
               <th className="py-2 pr-4"></th>
             </tr>
           </thead>
@@ -159,25 +159,13 @@ export default function AdminStudents() {
                 <td className="py-2.5 pr-4 text-ink/60">{s.branch} · Y{s.year}</td>
                 <td className="py-2.5 pr-4">{s.totalHours}</td>
                 <td className="py-2.5 pr-4">{s.totalPoints}</td>
-                <td className="py-2.5 pr-4">
-                  <span className="inline-flex items-center gap-1.5 text-xs">
-                    <input type="checkbox" checked={!!s.isActive} readOnly className="accent-primary-600 pointer-events-none" />
-                    {s.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-                <td className="py-2.5 pr-4" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => issueCertificate(s._id)} className="text-primary-600 hover:underline flex items-center gap-1 text-xs">
-                      <Award size={14} /> Certificate
-                    </button>
-                    <button
-                      onClick={() => toggleStatus(s)}
-                      disabled={togglingStatus}
-                      className={`hover:underline flex items-center gap-1 text-xs ${s.isActive ? 'text-red-600' : 'text-green-600'}`}
-                    >
-                      <Power size={14} /> {s.isActive ? 'Deactivate' : 'Activate'}
-                    </button>
-                  </div>
+                <td className="py-2.5 pr-4 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => openPanel(s)} className="text-primary-600 hover:underline flex items-center gap-1 text-xs">
+                    <Activity size={14} /> Attendance
+                  </button>
+                  <button onClick={() => issueCertificate(s._id)} className="text-primary-600 hover:underline flex items-center gap-1 text-xs">
+                    <Award size={14} /> Certificate
+                  </button>
                 </td>
               </tr>
             ))}
@@ -194,12 +182,19 @@ export default function AdminStudents() {
               <X size={20} />
             </button>
 
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-start justify-between gap-3 mb-1 pr-8">
               <h3 className="font-display text-xl text-primary-900">{panelFor.name}</h3>
-              <span className="inline-flex items-center gap-1 text-xs">
-                <input type="checkbox" checked={!!panelFor.isActive} readOnly className="accent-primary-600 pointer-events-none" />
-                {panelFor.isActive ? 'Active' : 'Inactive'}
-              </span>
+              <button
+                onClick={() => toggleStatus(panelFor)}
+                disabled={togglingStatus}
+                className={`shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border ${
+                  panelFor.isActive
+                    ? 'text-red-600 border-red-200 hover:bg-red-50'
+                    : 'text-green-600 border-green-200 hover:bg-green-50'
+                }`}
+              >
+                <Power size={14} /> {panelFor.isActive ? 'Deactivate' : 'Activate'}
+              </button>
             </div>
             <p className="text-xs text-ink/50 mb-4">{panelFor.rollNo} · {panelFor.branch} · Y{panelFor.year}</p>
 
@@ -219,16 +214,9 @@ export default function AdminStudents() {
                   <input className="input col-span-2" placeholder="Email" value={editForm.email}
                     onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
                 </div>
-                <div className="flex items-center gap-3 mt-3">
+                <div className="mt-3">
                   <button onClick={saveEdit} disabled={saving} className="btn-primary flex items-center gap-2 text-xs">
                     <Save size={14} /> {saving ? 'Saving…' : 'Save changes'}
-                  </button>
-                  <button
-                    onClick={() => toggleStatus(panelFor)}
-                    disabled={togglingStatus}
-                    className={`flex items-center gap-2 text-xs hover:underline ${panelFor.isActive ? 'text-red-600' : 'text-green-600'}`}
-                  >
-                    <Power size={14} /> {panelFor.isActive ? 'Deactivate student' : 'Activate student'}
                   </button>
                 </div>
               </div>

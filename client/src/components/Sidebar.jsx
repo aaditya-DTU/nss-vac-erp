@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, ListChecks, CalendarDays, Trophy, Award, Users, LogOut, Megaphone, ShieldCheck, MessageCircleQuestion, Image, HandHelping, Lightbulb } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useSocket } from '../context/SocketContext';
+import { useAnnouncements } from '../context/AnnouncementContext';
 import api from '../api/axios';
 
 const adminLinks = [
@@ -33,20 +33,9 @@ const studentLinks = [
 export default function Sidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const socket = useSocket();
-  const [unread, setUnread] = useState(0);
+  const { unreadCount } = useAnnouncements();
   const [gapCount, setGapCount] = useState(0);
   const links = user?.role === 'admin' ? adminLinks : studentLinks;
-
-  const loadUnread = () => api.get('/announcements/unread-count').then((r) => setUnread(r.data.count)).catch(() => {});
-  useEffect(() => { loadUnread(); }, []);
-
-  useEffect(() => {
-    if (!socket) return;
-    const bump = () => setUnread((c) => c + 1);
-    socket.on('announcement:new', bump);
-    return () => socket.off('announcement:new', bump);
-  }, [socket]);
 
   // Admin-only: how many distinct questions the chatbot couldn't answer
   // well are still sitting unresolved — see AdminUnanswered.jsx.
@@ -68,7 +57,6 @@ export default function Sidebar() {
             key={to}
             to={to}
             end={end}
-            onClick={() => label === 'Announcements' && setUnread(0)}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors relative ${
                 isActive ? 'bg-primary-600 text-white' : 'text-ink/70 hover:bg-primary-50'
@@ -77,9 +65,9 @@ export default function Sidebar() {
           >
             <Icon size={18} />
             {label}
-            {label === 'Announcements' && unread > 0 && (
+            {label === 'Announcements' && unreadCount > 0 && (
               <span className="ml-auto bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
-                {unread}
+                {unreadCount}
               </span>
             )}
           </NavLink>

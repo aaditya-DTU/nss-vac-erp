@@ -5,15 +5,18 @@ import { Toaster } from 'react-hot-toast';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { SocketProvider } from './context/SocketContext.jsx';
+import { AnnouncementProvider } from './context/AnnouncementContext.jsx';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-    <BrowserRouter>
-      <AuthProvider>
-        <SocketProvider>
+  <BrowserRouter>
+    <AuthProvider>
+      <SocketProvider>
+        <AnnouncementProvider>
           <App />
           <Toaster position="top-right" toastOptions={{ style: { borderRadius: '12px' } }} />
-        </SocketProvider>
-      </AuthProvider>
-    </BrowserRouter>
+        </AnnouncementProvider>
+      </SocketProvider>
+    </AuthProvider>
+  </BrowserRouter>
 );

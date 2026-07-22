@@ -7,6 +7,7 @@ import { useSocket } from '../context/SocketContext';
 import { format } from 'date-fns';
 import { Pin, Plus, X, Trash2, Pencil, Megaphone } from 'lucide-react';
 import clsx from 'clsx';
+import { useAnnouncements } from '../context/AnnouncementContext';
 
 const categoryStyles = {
   general: 'bg-primary-50 text-primary-700',
@@ -21,13 +22,17 @@ export default function Announcements() {
   usePageTitle("Announcements");
   const { user } = useAuth();
   const socket = useSocket();
+  const { decrementUnread, refreshUnreadCount } = useAnnouncements();
   const [announcements, setAnnouncements] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
 
   const load = () => api.get('/announcements').then((r) => setAnnouncements(r.data.announcements));
-  useEffect(() => { load(); }, []);
+  useEffect(() => { 
+    load();
+    refreshUnreadCount();
+   }, []);
 
   // Live arrival — anyone with the page open sees a new announcement
   // (and a toast) the instant an admin publishes it, no refresh needed.
@@ -42,8 +47,17 @@ export default function Announcements() {
   }, [socket]);
 
   const markRead = async (id) => {
+    const target = announcements.find((a) => a._id === id);
+    if (!target || target.isRead) return; // avoid double-decrementing on repeated hovers
+
     setAnnouncements((prev) => prev.map((a) => (a._id === id ? { ...a, isRead: true } : a)));
-    await api.post(`/announcements/${id}/read`);
+    decrementUnread();
+    try {
+      await api.post(`/announcements/${id}/read`);
+    } catch {
+      // Best effort — if this fails, refreshUnreadCount() on next page
+      // visit will self-correct the badge.
+    }
   };
 
   const openCreate = () => { setForm(emptyForm); setEditingId(null); setShowForm(true); };

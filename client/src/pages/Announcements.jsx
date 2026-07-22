@@ -1,13 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
+import React from 'react';
 import { usePageTitle } from '../context/PageTitleContext';
-import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { useSocket } from '../context/SocketContext';
 import { format } from 'date-fns';
 import { Pin, Plus, X, Trash2, Pencil, Megaphone } from 'lucide-react';
 import clsx from 'clsx';
-import { useAnnouncements } from '../context/AnnouncementContext';
+import { useAnnouncementFeed } from '../hooks/useAnnouncementFeed';
+import { useAnnouncementAdmin } from '../hooks/useAnnouncementAdmin';
 
 const categoryStyles = {
   general: 'bg-primary-50 text-primary-700',
@@ -16,87 +14,13 @@ const categoryStyles = {
   deadline: 'bg-orange-50 text-orange-700',
 };
 
-const emptyForm = { title: '', content: '', category: 'general', pinned: false, expiresAt: '' };
-
 export default function Announcements() {
   usePageTitle("Announcements");
   const { user } = useAuth();
-  const socket = useSocket();
-  const { decrementUnread, refreshUnreadCount } = useAnnouncements();
-  const [announcements, setAnnouncements] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(emptyForm);
 
-  const load = () => api.get('/announcements').then((r) => setAnnouncements(r.data.announcements));
-  useEffect(() => { 
-    load();
-    refreshUnreadCount();
-   }, []);
-
-  // Live arrival — anyone with the page open sees a new announcement
-  // (and a toast) the instant an admin publishes it, no refresh needed.
-  useEffect(() => {
-    if (!socket) return;
-    const onNew = (a) => {
-      setAnnouncements((prev) => [{ ...a, isRead: false, readCount: 0 }, ...prev]);
-      toast(`📢 ${a.title}`, { duration: 5000 });
-    };
-    socket.on('announcement:new', onNew);
-    return () => socket.off('announcement:new', onNew);
-  }, [socket]);
-
-  const markRead = async (id) => {
-    const target = announcements.find((a) => a._id === id);
-    if (!target || target.isRead) return; // avoid double-decrementing on repeated hovers
-
-    setAnnouncements((prev) => prev.map((a) => (a._id === id ? { ...a, isRead: true } : a)));
-    decrementUnread();
-    try {
-      await api.post(`/announcements/${id}/read`);
-    } catch {
-      // Best effort — if this fails, refreshUnreadCount() on next page
-      // visit will self-correct the badge.
-    }
-  };
-
-  const openCreate = () => { setForm(emptyForm); setEditingId(null); setShowForm(true); };
-  const openEdit = (a) => {
-    setForm({
-      title: a.title,
-      content: a.content,
-      category: a.category,
-      pinned: a.pinned,
-      expiresAt: a.expiresAt ? a.expiresAt.slice(0, 10) : '',
-    });
-    setEditingId(a._id);
-    setShowForm(true);
-  };
-
-  const submit = async (e) => {
-    e.preventDefault();
-    try {
-      const payload = { ...form, expiresAt: form.expiresAt || undefined };
-      if (editingId) {
-        await api.patch(`/announcements/${editingId}`, payload);
-        toast.success('Announcement updated');
-      } else {
-        await api.post('/announcements', payload);
-        toast.success('Announcement published to all students');
-      }
-      setShowForm(false);
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save announcement');
-    }
-  };
-
-  const remove = async (id) => {
-    if (!confirm('Delete this announcement?')) return;
-    await api.delete(`/announcements/${id}`);
-    toast.success('Deleted');
-    load();
-  };
+  const { announcements, load, markRead } = useAnnouncementFeed();
+  const { form, setForm, showForm, editingId, openCreate, openEdit, closeForm, submit, remove } =
+    useAnnouncementAdmin(load);
 
   return (
     <>
@@ -154,7 +78,7 @@ export default function Announcements() {
       {showForm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-30 p-4">
           <form onSubmit={submit} className="card w-full max-w-lg relative">
-            <button type="button" onClick={() => setShowForm(false)} className="absolute right-4 top-4 text-ink/40 hover:text-ink">
+            <button type="button" onClick={closeForm} className="absolute right-4 top-4 text-ink/40 hover:text-ink">
               <X size={20} />
             </button>
             <h3 className="font-display text-xl text-primary-900 mb-4">{editingId ? 'Edit announcement' : 'New announcement'}</h3>

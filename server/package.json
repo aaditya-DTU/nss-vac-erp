@@ -1,5 +1,5 @@
 {
-  "name": "nss-vac-erp-server",
+  "name": "sahyog-server",
   "version": "1.0.0",
   "description": "Smart ERP backend for NSS VAC subject management at DTU",
   "main": "server.js",

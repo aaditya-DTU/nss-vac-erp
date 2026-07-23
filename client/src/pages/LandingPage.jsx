@@ -121,7 +121,7 @@ export default function Landing() {
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-primary-100">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
-            <p className="font-display text-lg text-primary-800 leading-none">NSS VAC</p>
+            <p className="font-display text-lg text-primary-800 leading-none">Sahyog</p>
             <p className="text-[11px] text-primary-500">Delhi Technological University</p>
           </div>
           <div className="flex items-center gap-3">
@@ -137,7 +137,7 @@ export default function Landing() {
         <div className="max-w-5xl mx-auto px-6 py-20 text-center">
           <p className="text-sm uppercase tracking-widest text-primary-200 mb-4">National Service Scheme · Value Added Course</p>
           <h1 className="font-display text-4xl sm:text-5xl leading-tight mb-5">
-            One platform for every NSS VAC<br />task, event, and certificate
+            One platform for every Sahyog<br />task, event, and certificate
           </h1>
           <p className="text-primary-100 max-w-2xl mx-auto mb-8">
             Register with your DTU email, complete real community-service activities, and track your hours, points,
@@ -285,7 +285,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-6">
             <div className="text-center md:text-left">
-              <p className="font-display text-sm text-primary-800">NSS VAC ERP</p>
+              <p className="font-display text-sm text-primary-800">Sahyog</p>
               <p className="text-xs text-ink/40 mt-0.5">Delhi Technological University</p>
             </div>
 
@@ -326,7 +326,7 @@ export default function Landing() {
           </div>
 
           <div className="pt-6 border-t border-primary-50 text-center">
-            <p className="text-xs text-ink/30">© {new Date().getFullYear()} NSS VAC ERP. All rights reserved.</p>
+            <p className="text-xs text-ink/30">© {new Date().getFullYear()} Sahyog. All rights reserved.</p>
           </div>
         </div>
       </footer>

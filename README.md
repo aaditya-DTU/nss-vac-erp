@@ -1,8 +1,8 @@
-# NSS VAC ERP
+# Sahyog
 
-A full-stack ERP platform for managing **NSS (National Service Scheme) VAC** volunteer activities — built for DTU. It handles student onboarding, task and event management, geofenced QR attendance, proof submissions, certificates, an AI chatbot, and admin reporting, all in one place.
+A full-stack ERP platform for managing **NSS (National Service Scheme) VAC** volunteer activities — built for DTU. It handles student onboarding, task and event management, geofenced QR attendance, proof submissions, certificates, an AI chatbot ("Sahyog Saathi"), and admin reporting, all in one place.
 
-**Live repo:** [aaditya-DTU/nss-vac-erp](https://github.com/aaditya-DTU/nss-vac-erp)
+**Live repo:** [aaditya-DTU/sahyog](https://github.com/aaditya-DTU/sahyog)
 
 ---
 
@@ -43,7 +43,7 @@ A full-stack ERP platform for managing **NSS (National Service Scheme) VAC** vol
 - 🔔 **Real-time notifications** — Socket.io-backed, with an unread-count context and scheduled deadline reminders
 - 📣 **Announcements** — admin broadcast with per-user read tracking
 - 💡 **Ideas board** — student idea submission with upvoting and admin status management
-- 🤖 **AI chatbot** — FAQ-grounded assistant with feedback capture and an "unanswered questions" admin queue
+- 🤖 **Sahyog Saathi (AI chatbot)** — FAQ-grounded assistant with feedback capture and an "unanswered questions" admin queue
 - 📊 **Dashboards & leaderboard** — role-specific admin/student views
 - 🧾 **Reports** — exportable NSS summary reports (admin only)
 
@@ -52,7 +52,7 @@ A full-stack ERP platform for managing **NSS (National Service Scheme) VAC** vol
 ## Project Structure
 
 ```
-nss-vac-erp/
+sahyog/
 ├── client/                 # React + Vite frontend
 │   ├── src/
 │   │   ├── hooks/          # Custom hooks (e.g. useEvents, useAnnouncements)
@@ -84,8 +84,8 @@ nss-vac-erp/
 
 ### 1. Clone the repo
 ```bash
-git clone https://github.com/aaditya-DTU/nss-vac-erp.git
-cd nss-vac-erp
+git clone https://github.com/aaditya-DTU/sahyog.git
+cd sahyog
 ```
 
 ### 2. Backend setup
@@ -208,7 +208,7 @@ All endpoints except `/api/health`, `/api/auth/*`, and `GET /api/certificates/ve
 ### Chatbot — `/api/chatbot`
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | `/ask` | Protected | Ask the AI assistant a question |
+| POST | `/ask` | Protected | Ask Sahyog Saathi a question |
 | GET | `/history` | Protected | Get chat history |
 | DELETE | `/history` | Protected | Clear chat history |
 | GET | `/greeting` | Protected | Get a contextual greeting message |

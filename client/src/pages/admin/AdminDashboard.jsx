@@ -23,7 +23,7 @@ export default function AdminDashboard() {
   useEffect(() => { api.get('/dashboard/admin').then((r) => setData(r.data)); }, []);
 
   // Hook must run every render regardless of the loading early-return below.
-  usePageTitle(data ? 'NSS Command Centre' : 'Admin Dashboard');
+  usePageTitle(data ? 'Sahyog' : 'Admin Dashboard');
 
   if (!data) return <p className="text-ink/50">Loading…</p>;
 

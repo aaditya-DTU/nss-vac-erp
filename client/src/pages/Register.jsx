@@ -138,7 +138,7 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center bg-surface p-8">
       <form onSubmit={handleSubmit} className="w-full max-w-md card">
         <h2 className="font-display text-2xl text-primary-900 mb-1">Student registration</h2>
-        <p className="text-sm text-ink/60 mb-6">Join the NSS Value Added Course — DTU email required</p>
+        <p className="text-sm text-ink/60 mb-6">Join the Sahyog platform — DTU email required</p>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">

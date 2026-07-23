@@ -47,7 +47,7 @@ export default function Sidebar() {
   return (
     <aside className="w-64 shrink-0 h-screen sticky top-0 bg-white border-r border-primary-100 flex flex-col">
       <div className="px-6 py-6">
-        <h1 className="font-display text-xl text-primary-800 leading-tight">NSS VAC</h1>
+        <h1 className="font-display text-xl text-primary-800 leading-tight">Sahyog</h1>
         <p className="text-xs text-primary-500 mt-0.5">Delhi Technological University</p>
       </div>
 

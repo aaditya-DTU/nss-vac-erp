@@ -38,9 +38,7 @@ export default function Login() {
             National Service Scheme
           </p>
           <h1 className="font-display text-5xl mt-4 leading-tight">
-            NSS VAC
-            <br />
-            Command Centre
+            Sahyog
           </h1>
         </div>
         <div className="space-y-3">
@@ -64,7 +62,7 @@ export default function Login() {
             Sign in
           </h2>
           <p className="text-sm text-ink/60 mb-6">
-            Access your NSS VAC dashboard
+            Access your Sahyog dashboard
           </p>
 
           <label className="text-sm font-medium text-ink/70">Email</label>

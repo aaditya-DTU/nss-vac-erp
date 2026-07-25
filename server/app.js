@@ -17,6 +17,16 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
 const app = express();
 
+// Render (and most PaaS hosts) put the app behind one reverse proxy hop,
+// which sets X-Forwarded-For on every request. Express doesn't trust that
+// header by default — without this, express-rate-limit refuses to use it
+// (see the ERR_ERL_UNEXPECTED_X_FORWARDED_FOR error), since blindly
+// trusting a client-settable header for rate-limiting would let anyone
+// spoof their way around limits. `1` means "trust exactly one hop in
+// front of us" (Render's proxy) — not "trust everything," which would
+// reopen that same spoofing hole.
+app.set('trust proxy', 1);
+
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({ origin: CLIENT_URL, credentials: true }));
 app.use(cookieParser());

@@ -199,7 +199,7 @@ export default function AdminStudents() {
             </button>
 
             <div className="flex items-start justify-between gap-3 mb-1 pr-8">
-              <h3 className="font-display text-xl text-primary-900">{panelFor.name}</h3>
+              <h3 className="font-display text-xl text-primary-900 min-w-0 break-words">{panelFor.name}</h3>
               <button
                 onClick={() => toggleStatus(panelFor)}
                 disabled={togglingStatus}
@@ -249,7 +249,7 @@ export default function AdminStudents() {
 
               {isEditing && editForm && (
                 <>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input className="input" placeholder="Name" value={editForm.name}
                       onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
                     <input className="input" placeholder="Roll No." value={editForm.rollNo}

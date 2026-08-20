@@ -16,19 +16,17 @@ async function seed() {
   const admin = await User.create({
     name: 'Dr. NSS Coordinator',
     email: 'admin@dtu.ac.in',
-    password: 'admin123',
+    password: '@Admin2609',
     role: 'admin',
     isVerified: true,
   });
 
   const demoStudents = [
-    { name: 'Aditya Sharma', email: 'aditya@dtu.ac.in', rollNo: '2K23/MC/01', branch: 'MC', year: 2, section: 'A' },
-    { name: 'Priya Verma', email: 'priya@dtu.ac.in', rollNo: '2K23/MC/02', branch: 'MC', year: 2, section: 'A' },
-    { name: 'Rohan Gupta', email: 'rohan@dtu.ac.in', rollNo: '2K23/CO/03', branch: 'CO', year: 2, section: 'B' },
+    { name: 'Demo', email: 'demo@dtu.ac.in', rollNo: 'demo', branch: 'NA', year: 1, section: 'NA' },
   ];
   const students = [];
   for (const s of demoStudents) {
-    students.push(await User.create({ ...s, password: 'student123', role: 'student', isVerified: true }));
+    students.push(await User.create({ ...s, password: '@Demo2609', role: 'student', isVerified: true }));
   }
 
   await Task.create({
@@ -54,8 +52,8 @@ async function seed() {
     pointsWorth: 30,
   });
 
-  console.log('Seed complete. Admin login: admin@dtu.ac.in / admin123');
-  console.log('Student login: aditya@dtu.ac.in / student123');
+  console.log('Seed complete. Admin login: admin@dtu.ac.in / @Admin2609');
+  console.log('Student login: demo@dtu.ac.in / @Demo2609');
   await mongoose.disconnect();
 }
 

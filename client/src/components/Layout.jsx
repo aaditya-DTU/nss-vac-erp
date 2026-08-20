@@ -1,5 +1,5 @@
-import React from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import ChatWidget from './ChatWidget';
@@ -12,12 +12,23 @@ import { PageTitleProvider, usePageTitleValue } from '../context/PageTitleContex
 // re-firing on every single route change like they used to.
 function LayoutShell() {
   const title = usePageTitleValue();
+  const location = useLocation();
+
+  // Sidebar is a static column on lg+ screens and an off-canvas drawer
+  // below that, toggled from the hamburger button in Topbar. Closing it
+  // on every route change means a stale-open drawer never lingers over
+  // the page the user just navigated to.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
   return (
     <div className="flex min-h-screen bg-surface">
-      <Sidebar />
+      <Sidebar mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 min-w-0">
-        <Topbar title={title} />
-        <main className="p-8">
+        <Topbar title={title} onMenuClick={() => setSidebarOpen(true)} />
+        <main className="p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

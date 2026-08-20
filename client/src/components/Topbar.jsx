@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bell } from 'lucide-react';
+import { Bell, Menu } from 'lucide-react';
 import api from '../api/axios';
 import { useSocket } from '../context/SocketContext';
 import toast from 'react-hot-toast';
 
-export default function Topbar({ title }) {
+export default function Topbar({ title, onMenuClick }) {
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
@@ -67,10 +67,19 @@ export default function Topbar({ title }) {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-10 bg-surface/80 backdrop-blur border-b border-primary-100 px-8 py-4 flex items-center justify-between">
-      <h2 className="font-display text-2xl text-primary-900">{title}</h2>
+    <header className="sticky top-0 z-10 bg-surface/80 backdrop-blur border-b border-primary-100 px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2 min-w-0">
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden shrink-0 p-2 -ml-2 rounded-lg hover:bg-primary-100 text-primary-700"
+          aria-label="Open menu"
+        >
+          <Menu size={22} />
+        </button>
+        <h2 className="font-display text-lg sm:text-2xl text-primary-900 truncate">{title}</h2>
+      </div>
 
-      <div className="relative" ref={wrapperRef}>
+      <div className="relative shrink-0" ref={wrapperRef}>
         <button onClick={toggle} className="relative p-2 rounded-full hover:bg-primary-100">
           <Bell size={20} className="text-primary-700" />
           {unread > 0 && (
@@ -82,9 +91,10 @@ export default function Topbar({ title }) {
 
         {/* Always mounted so the open/close transition can actually play —
             conditionally rendering with {open && ...} would mount/unmount
-            it instantly with no animation. */}
+            it instantly with no animation. Width is clamped to the
+            viewport on small screens so it can't overflow off-screen. */}
         <div
-          className={`absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto card z-20 origin-top-right transition-all duration-150 ease-out ${
+          className={`absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-80 max-h-96 overflow-y-auto card z-20 origin-top-right transition-all duration-150 ease-out ${
             open
               ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
               : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'

@@ -215,7 +215,7 @@ export default function AdminTasks() {
             <label className="text-sm font-medium text-ink/70">Description</label>
             <textarea required rows={3} className="input mt-1 mb-3" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
 
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="text-sm font-medium text-ink/70">Category</label>
                 <select className="input mt-1" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
@@ -245,7 +245,7 @@ export default function AdminTasks() {
             </select>
 
             {form.scope === 'filter' && (
-              <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                 <input placeholder="Year" className="input" value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} />
                 <input placeholder="Branch" className="input" value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} />
                 <input placeholder="Section" className="input" value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value })} />

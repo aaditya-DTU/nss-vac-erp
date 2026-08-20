@@ -524,7 +524,7 @@ export default function Events() {
               Required for check-in to verify students are actually at the venue. Stand at (or near) the venue and
               tap "Use my current location", or enter coordinates manually.
             </p>
-            <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
               <input
                 type="number"
                 step="any"
@@ -660,7 +660,7 @@ export default function Events() {
 
       {activeEvent && user.role === "student" && (
         <div
-          className="fixed inset-0 bg-black/30 flex items-center justify-center z-30"
+          className="fixed inset-0 bg-black/30 flex items-center justify-center z-30 p-4"
           onClick={() => setActiveEvent(null)}
         >
           <form

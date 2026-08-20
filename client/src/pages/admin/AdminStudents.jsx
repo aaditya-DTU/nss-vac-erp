@@ -29,6 +29,7 @@ export default function AdminStudents() {
   const [activity, setActivity] = useState(null);
   const [loadingActivity, setLoadingActivity] = useState(false);
   const [editForm, setEditForm] = useState(null);
+  const [isEditing, setIsEditing] = useState(false); // panel opens read-only; this flips on "Edit details"
   const [saving, setSaving] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
 
@@ -66,6 +67,7 @@ export default function AdminStudents() {
 
   const openPanel = async (student) => {
     setPanelFor(student);
+    setIsEditing(false);
     setEditForm({
       name: student.name || '',
       rollNo: student.rollNo || '',
@@ -88,6 +90,7 @@ export default function AdminStudents() {
     setPanelFor(null);
     setActivity(null);
     setEditForm(null);
+    setIsEditing(false);
   };
 
   const saveEdit = async () => {
@@ -97,11 +100,24 @@ export default function AdminStudents() {
       toast.success('Student updated');
       setStudents((prev) => prev.map((s) => (s._id === panelFor._id ? { ...s, ...data.user } : s)));
       setPanelFor((prev) => ({ ...prev, ...data.user }));
+      setIsEditing(false);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Update failed');
     } finally {
       setSaving(false);
     }
+  };
+
+  const cancelEdit = () => {
+    // Revert any unsaved changes back to the student's current values.
+    setEditForm({
+      name: panelFor.name || '',
+      rollNo: panelFor.rollNo || '',
+      branch: panelFor.branch || '',
+      year: panelFor.year || '',
+      email: panelFor.email || '',
+    });
+    setIsEditing(false);
   };
 
   const toggleStatus = async (student) => {
@@ -198,29 +214,64 @@ export default function AdminStudents() {
             </div>
             <p className="text-xs text-ink/50 mb-4">{panelFor.rollNo} · {panelFor.branch} · Y{panelFor.year}</p>
 
-            {/* Edit form */}
-            {editForm && (
-              <div className="mb-6 border border-primary-100 rounded-xl p-4">
-                <p className="text-sm font-semibold text-ink mb-3 flex items-center gap-1.5"><Pencil size={14} /> Edit profile</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <input className="input" placeholder="Name" value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-                  <input className="input" placeholder="Roll No." value={editForm.rollNo}
-                    onChange={(e) => setEditForm({ ...editForm, rollNo: e.target.value })} />
-                  <input className="input" placeholder="Branch" value={editForm.branch}
-                    onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })} />
-                  <input className="input" placeholder="Year" value={editForm.year}
-                    onChange={(e) => setEditForm({ ...editForm, year: e.target.value })} />
-                  <input className="input col-span-2" placeholder="Email" value={editForm.email}
-                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
-                </div>
-                <div className="mt-3">
-                  <button onClick={saveEdit} disabled={saving} className="btn-primary flex items-center gap-2 text-xs">
-                    <Save size={14} /> {saving ? 'Saving…' : 'Save changes'}
+            {/* Details block — read-only by default. "Edit details" reveals
+                the editable form below; nothing is editable until the admin
+                explicitly opts in. */}
+            <div className="mb-6 border border-primary-100 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-ink flex items-center gap-1.5">
+                  {isEditing ? <><Pencil size={14} /> Edit profile</> : 'Student details'}
+                </p>
+                {!isEditing && (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="text-xs text-primary-600 hover:underline flex items-center gap-1"
+                  >
+                    <Pencil size={12} /> Edit details
                   </button>
-                </div>
+                )}
               </div>
-            )}
+
+              {!isEditing && editForm && (
+                <div className="grid grid-cols-2 gap-y-2 text-sm">
+                  <span className="text-ink/50">Name</span>
+                  <span className="text-ink font-medium">{editForm.name || '—'}</span>
+                  <span className="text-ink/50">Roll No.</span>
+                  <span className="text-ink font-medium">{editForm.rollNo || '—'}</span>
+                  <span className="text-ink/50">Branch</span>
+                  <span className="text-ink font-medium">{editForm.branch || '—'}</span>
+                  <span className="text-ink/50">Year</span>
+                  <span className="text-ink font-medium">{editForm.year || '—'}</span>
+                  <span className="text-ink/50">Email</span>
+                  <span className="text-ink font-medium truncate">{editForm.email || '—'}</span>
+                </div>
+              )}
+
+              {isEditing && editForm && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input className="input" placeholder="Name" value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+                    <input className="input" placeholder="Roll No." value={editForm.rollNo}
+                      onChange={(e) => setEditForm({ ...editForm, rollNo: e.target.value })} />
+                    <input className="input" placeholder="Branch" value={editForm.branch}
+                      onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })} />
+                    <input className="input" placeholder="Year" value={editForm.year}
+                      onChange={(e) => setEditForm({ ...editForm, year: e.target.value })} />
+                    <input className="input col-span-2" placeholder="Email" value={editForm.email}
+                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button onClick={saveEdit} disabled={saving} className="btn-primary flex items-center gap-2 text-xs">
+                      <Save size={14} /> {saving ? 'Saving…' : 'Save changes'}
+                    </button>
+                    <button onClick={cancelEdit} disabled={saving} className="btn-secondary text-xs">
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             {loadingActivity && <p className="text-sm text-ink/50">Loading activity…</p>}
 

@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const QRCode = require('qrcode');
+const ExcelJS = require('exceljs');
 const Event = require('../models/Event');
 const Attendance = require('../models/Attendance');
 const { awardCredit, notify } = require('../utils/ledger');
@@ -157,6 +158,16 @@ exports.checkIn = async (req, res, next) => {
   }
 };
 
+// Admin fallback for when a student can't complete the normal QR + GPS
+// check-in (broken location permissions, no signal at the venue, the
+// coordinator forgot to open the attendance window, etc). Deliberately
+// skips BOTH checks that gate the student-facing checkIn flow above:
+//   - no isAttendanceOpen requirement — works even if the window was
+//     never opened or was already closed
+//   - no geofence/distance check at all — an admin marking attendance is
+//     not required to be at (or near) the venue themselves
+// This is intentional, not an oversight: admin-marked attendance is a
+// trusted override, not a re-verified check-in.
 exports.manualCheckIn = async (req, res, next) => {
   try {
     const io = req.app.get('io');
@@ -166,12 +177,13 @@ exports.manualCheckIn = async (req, res, next) => {
     const existing = await Attendance.findOne({ event: event._id, student: req.body.studentId });
     if (existing) return res.status(409).json({ success: false, message: 'Attendance already marked.' });
 
-    const attendance = await Attendance.create({
+    let attendance = await Attendance.create({
       event: event._id,
       student: req.body.studentId,
       method: 'manual',
       markedBy: req.user._id,
     });
+    attendance = await attendance.populate('student', 'name rollNo branch year');
 
     await awardCredit({
       studentId: req.body.studentId,
@@ -194,6 +206,112 @@ exports.eventAttendanceList = async (req, res, next) => {
   try {
     const list = await Attendance.find({ event: req.params.id }).populate('student', 'name rollNo branch year');
     res.json({ success: true, attendance: list });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Admin-facing report for a single past event: who attended, when, how
+// (QR vs manual), and — on a second sheet — who registered but never
+// checked in, so a coordinator can see the full picture in one file
+// instead of cross-referencing the registration list against attendance.
+exports.exportEventAttendanceReport = async (req, res, next) => {
+  try {
+    const event = await Event.findById(req.params.id).populate('registeredStudents', 'name rollNo branch year email');
+    if (!event) return res.status(404).json({ success: false, message: 'Event not found.' });
+
+    const attendance = await Attendance.find({ event: event._id })
+      .populate('student', 'name rollNo branch year email')
+      .populate('markedBy', 'name')
+      .sort({ checkedInAt: 1 });
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'NSS VAC ERP';
+    workbook.created = new Date();
+
+    const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E9FF' } };
+
+    const attSheet = workbook.addWorksheet('Attendance');
+    attSheet.columns = [
+      { header: 'S.No', key: 'sno', width: 6 },
+      { header: 'Name', key: 'name', width: 26 },
+      { header: 'Roll No.', key: 'rollNo', width: 16 },
+      { header: 'Branch', key: 'branch', width: 10 },
+      { header: 'Year', key: 'year', width: 8 },
+      { header: 'Email', key: 'email', width: 28 },
+      { header: 'Checked In At', key: 'checkedInAt', width: 22 },
+      { header: 'Method', key: 'method', width: 10 },
+      { header: 'Distance from venue (m)', key: 'distance', width: 20 },
+      { header: 'Marked By (if manual)', key: 'markedBy', width: 20 },
+    ];
+    attSheet.getRow(1).font = { bold: true };
+    attSheet.getRow(1).fill = headerFill;
+
+    attendance.forEach((a, i) => {
+      attSheet.addRow({
+        sno: i + 1,
+        name: a.student?.name || 'Deleted user',
+        rollNo: a.student?.rollNo || '',
+        branch: a.student?.branch || '',
+        year: a.student?.year || '',
+        email: a.student?.email || '',
+        checkedInAt: a.checkedInAt ? new Date(a.checkedInAt).toLocaleString('en-IN') : '',
+        method: a.method,
+        distance: a.distanceFromVenueMeters ?? '',
+        markedBy: a.markedBy?.name || '',
+      });
+    });
+
+    const attendedIds = new Set(attendance.map((a) => String(a.student?._id)));
+    const noShows = (event.registeredStudents || []).filter((s) => !attendedIds.has(String(s._id)));
+
+    const noShowSheet = workbook.addWorksheet('Registered - Not Attended');
+    noShowSheet.columns = [
+      { header: 'S.No', key: 'sno', width: 6 },
+      { header: 'Name', key: 'name', width: 26 },
+      { header: 'Roll No.', key: 'rollNo', width: 16 },
+      { header: 'Branch', key: 'branch', width: 10 },
+      { header: 'Year', key: 'year', width: 8 },
+      { header: 'Email', key: 'email', width: 28 },
+    ];
+    noShowSheet.getRow(1).font = { bold: true };
+    noShowSheet.getRow(1).fill = headerFill;
+
+    noShows.forEach((s, i) => {
+      noShowSheet.addRow({
+        sno: i + 1,
+        name: s.name,
+        rollNo: s.rollNo,
+        branch: s.branch,
+        year: s.year,
+        email: s.email,
+      });
+    });
+
+    const summarySheet = workbook.addWorksheet('Summary');
+    summarySheet.columns = [
+      { header: 'Field', key: 'field', width: 24 },
+      { header: 'Value', key: 'value', width: 40 },
+    ];
+    summarySheet.getRow(1).font = { bold: true };
+    summarySheet.getRow(1).fill = headerFill;
+    summarySheet.addRows([
+      { field: 'Event', value: event.title },
+      { field: 'Location', value: event.location || '' },
+      { field: 'Start', value: new Date(event.startTime).toLocaleString('en-IN') },
+      { field: 'End', value: new Date(event.endTime).toLocaleString('en-IN') },
+      { field: 'Hours worth', value: event.hoursWorth },
+      { field: 'Points worth', value: event.pointsWorth },
+      { field: 'Registered', value: event.registeredStudents?.length || 0 },
+      { field: 'Attended', value: attendance.length },
+      { field: 'No-shows', value: noShows.length },
+    ]);
+
+    const safeTitle = event.title.replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}-attendance-report.xlsx"`);
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (err) {
     next(err);
   }

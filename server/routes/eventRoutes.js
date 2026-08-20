@@ -16,5 +16,6 @@ router.post('/:id/attendance/close', authorize('admin'), ctrl.closeAttendance);
 router.post('/:id/attendance/checkin', authorize('student'), ctrl.checkIn);
 router.post('/:id/attendance/manual', authorize('admin'), ctrl.manualCheckIn);
 router.get('/:id/attendance', authorize('admin'), ctrl.eventAttendanceList);
+router.get('/:id/attendance/report', authorize('admin'), ctrl.exportEventAttendanceReport);
 
 module.exports = router;

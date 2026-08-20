@@ -1,11 +1,15 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { X, FileSpreadsheet } from 'lucide-react';
 import clsx from 'clsx';
 
 /**
  * "Overall summary" popup opened by clicking a ledger item.
  * stats: [{ label, value }]
  * rows:  [{ id, primary, secondary, note, badge, badgeClass }]
+ * onDownload: optional — if provided, shows a "Download report" button
+ * (e.g. admin exporting a past event's attendance as Excel).
+ * extraActions: optional — extra header buttons rendered next to Download
+ * report (e.g. a "Mark attendance manually" trigger).
  */
 export default function LedgerSummaryModal({
   open,
@@ -16,6 +20,9 @@ export default function LedgerSummaryModal({
   rows = [],
   loading = false,
   emptyText = 'No records.',
+  onDownload,
+  downloading = false,
+  extraActions,
 }) {
   if (!open) return null;
 
@@ -28,7 +35,21 @@ export default function LedgerSummaryModal({
         <button onClick={onClose} className="absolute right-4 top-4 text-ink/40 hover:text-ink">
           <X size={20} />
         </button>
-        <h3 className="font-display text-xl text-primary-900 mb-1 pr-8">{title}</h3>
+        <div className="flex items-start justify-between gap-3 pr-8 mb-1">
+          <h3 className="font-display text-xl text-primary-900">{title}</h3>
+          <div className="shrink-0 flex items-center gap-2">
+            {extraActions}
+            {onDownload && (
+              <button
+                onClick={onDownload}
+                disabled={downloading}
+                className="btn-secondary text-xs flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <FileSpreadsheet size={14} /> {downloading ? 'Generating…' : 'Download report'}
+              </button>
+            )}
+          </div>
+        </div>
         {subtitle && <p className="text-xs text-ink/50 mb-4">{subtitle}</p>}
 
         {stats.length > 0 && (

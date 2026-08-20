@@ -22,7 +22,7 @@ const eventSchema = new mongoose.Schema(
     // back to code-only (with a console warning to the admin) for those.
     venueLat: { type: Number, default: null },
     venueLng: { type: Number, default: null },
-    checkinRadiusMeters: { type: Number, default: 200 },
+    checkinRadiusMeters: { type: Number, default: 75 },
 
     // Unique rotating code used to render a QR for on-site attendance check-in
     attendanceCode: { type: String, default: () => crypto.randomBytes(6).toString('hex') },

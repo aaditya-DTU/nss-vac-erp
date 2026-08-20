@@ -5,7 +5,7 @@ import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import { format } from "date-fns";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, X, Copy, QrCode, CircleDot, CircleOff, Pencil, Crosshair, MapPin } from "lucide-react";
+import { Plus, X, Copy, QrCode, CircleDot, CircleOff, Pencil, Crosshair, MapPin, UserCheck, Search, Check } from "lucide-react";
 import Ledger from "../components/ledger/Ledger";
 import LedgerSummaryModal from "../components/ledger/LedgerSummaryModal";
 
@@ -19,7 +19,7 @@ const emptyForm = {
   pointsWorth: 20,
   venueLat: "",
   venueLng: "",
-  checkinRadiusMeters: 200,
+  checkinRadiusMeters: 75,
 };
 
 // datetime-local inputs need "YYYY-MM-DDTHH:mm" in LOCAL time — using
@@ -54,6 +54,18 @@ export default function Events() {
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerData, setLedgerData] = useState(null);
+  const [downloadingReport, setDownloadingReport] = useState(false);
+
+  // Admin fallback for marking attendance when a student can't check in
+  // themselves (broken GPS, attendance window closed, etc). No geofence
+  // or window check applies here — see manualCheckIn on the server.
+  const [manualEvent, setManualEvent] = useState(null); // event currently targeted
+  const [manualAttendance, setManualAttendance] = useState([]); // who's already marked present
+  const [manualLoading, setManualLoading] = useState(false);
+  const [studentQuery, setStudentQuery] = useState("");
+  const [studentResults, setStudentResults] = useState([]);
+  const [searchingStudents, setSearchingStudents] = useState(false);
+  const [markingStudentId, setMarkingStudentId] = useState(null);
 
   const load = () => api.get("/events").then((r) => setEvents(r.data.events));
   useEffect(() => {
@@ -82,10 +94,90 @@ export default function Events() {
     }
   };
 
+  // Admin-only: pulls the full attendance workbook (who attended, when,
+  // method, plus registered-but-no-show) for the event currently open in
+  // the past-events summary modal.
+  const downloadEventReport = async () => {
+    const ev = ledgerData?.event;
+    if (!ev) return;
+    setDownloadingReport(true);
+    try {
+      const res = await api.get(`/events/${ev._id}/attendance/report`, { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${ev.title.replace(/[^a-z0-9]+/gi, "-").slice(0, 40)}-attendance-report.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("Report downloaded");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not generate report");
+    } finally {
+      setDownloadingReport(false);
+    }
+  };
+
   const register = async (id) => {
     await api.post(`/events/${id}/register`);
     toast.success("Registered for event");
     load();
+  };
+
+  const openManualAttendance = async (event) => {
+    setManualEvent(event);
+    setStudentQuery("");
+    setStudentResults([]);
+    setManualLoading(true);
+    try {
+      const { data } = await api.get(`/events/${event._id}/attendance`);
+      setManualAttendance(data.attendance);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not load attendance");
+    } finally {
+      setManualLoading(false);
+    }
+  };
+
+  const closeManualAttendance = () => {
+    setManualEvent(null);
+    setManualAttendance([]);
+    setStudentQuery("");
+    setStudentResults([]);
+  };
+
+  useEffect(() => {
+    if (!manualEvent) return;
+    const q = studentQuery.trim();
+    setSearchingStudents(true);
+    const timer = setTimeout(() => {
+      api
+        .get("/users", { params: { role: "student", search: q } })
+        .then((r) => setStudentResults(r.data.users))
+        .catch(() => toast.error("Could not search students"))
+        .finally(() => setSearchingStudents(false));
+    }, 250); // small debounce so we're not hitting the API on every keystroke
+    return () => clearTimeout(timer);
+  }, [studentQuery, manualEvent]);
+
+  const alreadyMarked = (studentId) => manualAttendance.some((a) => a.student?._id === studentId);
+
+  // Deliberately sends no location — this endpoint doesn't check it. An
+  // admin can mark a student present from anywhere, not just the venue.
+  const markPresent = async (student) => {
+    setMarkingStudentId(student._id);
+    try {
+      const { data } = await api.post(`/events/${manualEvent._id}/attendance/manual`, {
+        studentId: student._id,
+      });
+      setManualAttendance((prev) => [...prev, data.attendance]);
+      toast.success(`Marked ${student.name} present`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not mark attendance");
+    } finally {
+      setMarkingStudentId(null);
+    }
   };
 
   // Just flips the manual attendance gate — no QR/code involved here
@@ -166,7 +258,7 @@ export default function Events() {
       pointsWorth: ev.pointsWorth,
       venueLat: ev.venueLat ?? "",
       venueLng: ev.venueLng ?? "",
-      checkinRadiusMeters: ev.checkinRadiusMeters ?? 200,
+      checkinRadiusMeters: ev.checkinRadiusMeters ?? 75,
     });
     setShowCreateForm(true);
   };
@@ -215,7 +307,7 @@ export default function Events() {
       pointsWorth: Number(form.pointsWorth),
       venueLat: form.venueLat === "" ? null : Number(form.venueLat),
       venueLng: form.venueLng === "" ? null : Number(form.venueLng),
-      checkinRadiusMeters: Number(form.checkinRadiusMeters) || 200,
+      checkinRadiusMeters: Number(form.checkinRadiusMeters) || 75,
     };
     try {
       if (editingId) {
@@ -335,6 +427,12 @@ export default function Events() {
                   onClick={() => setCreatedEvent(ev)}
                 >
                   <QrCode size={14} /> Show join QR
+                </button>
+                <button
+                  className="btn-secondary w-full text-sm flex items-center justify-center gap-1"
+                  onClick={() => openManualAttendance(ev)}
+                >
+                  <UserCheck size={14} /> Mark attendance manually
                 </button>
               </div>
             ) : (
@@ -610,6 +708,18 @@ export default function Events() {
             : ""
         }
         loading={ledgerLoading}
+        onDownload={user.role === "admin" ? downloadEventReport : undefined}
+        downloading={downloadingReport}
+        extraActions={
+          user.role === "admin" && ledgerData?.event ? (
+            <button
+              onClick={() => openManualAttendance(ledgerData.event)}
+              className="btn-secondary text-xs flex items-center gap-1.5"
+            >
+              <UserCheck size={14} /> Mark attendance manually
+            </button>
+          ) : undefined
+        }
         stats={
           ledgerData?.event
             ? user.role === "admin"
@@ -651,6 +761,94 @@ export default function Events() {
         }
         emptyText="No one checked in for this event."
       />
+
+      {/* Admin fallback: mark a student present without any QR/GPS
+          check — for events where the normal check-in flow failed for
+          someone. Works for both live and past events, and from
+          anywhere (no geofence applies to admin-marked attendance). */}
+      {manualEvent && (
+        <div
+          className="fixed inset-0 bg-black/30 flex items-center justify-center z-30 p-4"
+          onClick={closeManualAttendance}
+        >
+          <div
+            className="card w-full max-w-md max-h-[85vh] overflow-y-auto relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeManualAttendance}
+              className="absolute right-4 top-4 text-ink/40 hover:text-ink"
+            >
+              <X size={20} />
+            </button>
+            <h3 className="font-display text-lg text-primary-900 mb-1 pr-8">
+              Mark attendance manually
+            </h3>
+            <p className="text-xs text-ink/50 mb-4">
+              {manualEvent.title} · No location check — you can mark a student present from
+              anywhere. Use this when a student can't complete the normal check-in themselves.
+            </p>
+
+            <div className="relative mb-3">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/30" />
+              <input
+                autoFocus
+                className="input pl-8"
+                placeholder="Search by name, roll no, email…"
+                value={studentQuery}
+                onChange={(e) => setStudentQuery(e.target.value)}
+              />
+            </div>
+
+            {manualLoading ? (
+              <p className="text-sm text-ink/50">Loading…</p>
+            ) : (
+              <ul className="space-y-2">
+                {studentResults.map((s) => {
+                  const marked = alreadyMarked(s._id);
+                  return (
+                    <li
+                      key={s._id}
+                      className="border border-primary-100 rounded-xl p-3 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium text-ink text-sm truncate">{s.name}</p>
+                        <p className="text-xs text-ink/50 truncate">
+                          {s.rollNo} · {s.branch} · Y{s.year}
+                        </p>
+                      </div>
+                      <button
+                        disabled={marked || markingStudentId === s._id}
+                        onClick={() => markPresent(s)}
+                        className={`shrink-0 text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+                          marked
+                            ? "text-green-600 border-green-200 bg-green-50"
+                            : "text-primary-600 border-primary-200 hover:bg-primary-50 disabled:opacity-50"
+                        }`}
+                      >
+                        {marked ? (
+                          <>
+                            <Check size={12} /> Present
+                          </>
+                        ) : markingStudentId === s._id ? (
+                          "Marking…"
+                        ) : (
+                          "Mark present"
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+                {!searchingStudents && studentResults.length === 0 && (
+                  <p className="text-xs text-ink/40 text-center py-2">
+                    {studentQuery.trim() ? "No students found." : "Type to search students."}
+                  </p>
+                )}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

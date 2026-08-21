@@ -1,6 +1,25 @@
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { setAuthCookie, clearAuthCookie } = require('../utils/authCookie');
 const { signToken, isAllowedEmailDomain, issueRegistrationOtp } = require('../utils/otpHelpers');
+
+// The httpOnly session cookie is deliberately never readable by JS, and
+// that's exactly right for REST calls (which stay same-origin via the
+// Vercel rewrite proxy — see client/vercel.json). But Socket.IO needs a
+// REAL WebSocket upgrade to work, and reverse-proxying a persistent
+// duplex WS connection through Vercel's rewrite isn't reliably
+// supported — it silently falls back to HTTP long-polling forever
+// instead. So the socket connects DIRECTLY to the backend (cross-origin),
+// which means the cookie can't be relied on there (third-party cookie
+// blocking applies to a direct cross-site request the same way it did
+// before the REST fix). This endpoint hands the already-authenticated
+// client (proven via the cookie, over the safe proxied REST path) a
+// short-lived token it can explicitly pass in the socket handshake
+// instead — see server/server.js's io.use() and SocketContext.jsx.
+exports.getSocketToken = (req, res) => {
+  const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
+  res.json({ success: true, token });
+};
 
 // Public self-registration is intentionally students-only, and gated behind
 // two checks: the email must be on the university domain, and the account

@@ -39,17 +39,28 @@ const io = new Server(server, {
   cors: { origin: CLIENT_URL, credentials: true },
 });
 
-// Socket auth reads the httpOnly cookie instead of a token handed to it in
-// JS (socket.handshake.auth.token) — the client can't read the token to
-// hand over in the first place, by design. The client just needs
-// `withCredentials: true` so the browser attaches the cookie automatically
-// to the socket.io handshake request, same as any other credentialed request.
+// Auth reads whichever the client actually sent:
+//   1. socket.handshake.auth.token — a short-lived token from
+//      GET /api/auth/socket-token, used for the direct cross-origin
+//      connection in production (see SocketContext.jsx). This is the
+//      primary path now.
+//   2. Falls back to the httpOnly cookie if no token was sent — still
+//      works for local dev, where the socket connects same-origin
+//      through Vite's dev proxy (vite.config.js has ws:true) and the
+//      cookie is first-party there, so there's no reason to force the
+//      token round-trip locally too.
 io.use((socket, next) => {
   try {
-    const rawCookie = socket.handshake.headers.cookie;
-    if (!rawCookie) return next();
-    const parsed = cookie.parse(rawCookie);
-    const token = parsed[COOKIE_NAME];
+    let token = socket.handshake.auth?.token;
+
+    if (!token) {
+      const rawCookie = socket.handshake.headers.cookie;
+      if (rawCookie) {
+        const parsed = cookie.parse(rawCookie);
+        token = parsed[COOKIE_NAME];
+      }
+    }
+
     if (!token) return next();
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     socket.userId = decoded.id;

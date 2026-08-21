@@ -15,6 +15,7 @@ router.post('/resend-otp', otpCtrl.resendOtp);
 router.post('/login', authCtrl.login);
 router.post('/logout', protect, authCtrl.logout);
 router.get('/me', protect, authCtrl.me);
+router.get('/socket-token', protect, authCtrl.getSocketToken);
 router.patch('/me', protect, authCtrl.updateMe);
 router.post('/change-password', protect, authCtrl.changePassword);
 

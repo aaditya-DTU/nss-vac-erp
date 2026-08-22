@@ -1,13 +1,38 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { usePageTitle } from "../context/PageTitleContext";
 import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import { format } from "date-fns";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, X, Copy, QrCode, CircleDot, CircleOff, Pencil, Crosshair, MapPin, UserCheck, Search, Check } from "lucide-react";
+import {
+  Plus,
+  X,
+  Copy,
+  QrCode,
+  CircleDot,
+  CircleOff,
+  Pencil,
+  Crosshair,
+  MapPin,
+  UserCheck,
+  Search,
+  Check,
+  ScanLine,
+} from "lucide-react";
 import Ledger from "../components/ledger/Ledger";
 import LedgerSummaryModal from "../components/ledger/LedgerSummaryModal";
+import QrScanner from "../components/QrScanner";
+
+// The join QR encodes a full URL like ".../events/<id>/join". A scanned
+// attendance QR may be that same URL (students are told to reuse it) or,
+// in principle, just the bare event ID. Handle both without needing any
+// backend change or a second QR to generate.
+function extractEventId(scannedText) {
+  const urlMatch = scannedText.match(/events\/([a-f0-9]{24})/i);
+  if (urlMatch) return urlMatch[1];
+  return scannedText.trim();
+}
 
 const emptyForm = {
   title: "",
@@ -38,6 +63,7 @@ export default function Events() {
   const [events, setEvents] = useState([]);
   const [checkinCode, setCheckinCode] = useState("");
   const [activeEvent, setActiveEvent] = useState(null);
+  const [scanning, setScanning] = useState(false);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -72,6 +98,10 @@ export default function Events() {
     load();
   }, []);
 
+  // Clear the auto-close timer if the component unmounts mid-countdown
+  // (e.g. the student navigates away right after a successful scan).
+  useEffect(() => () => clearTimeout(checkinAutoCloseRef.current), []);
+
   const openEventLedgerSummary = async (item) => {
     const ev = events.find((e) => e._id === item.id);
     if (!ev) return;
@@ -102,7 +132,9 @@ export default function Events() {
     if (!ev) return;
     setDownloadingReport(true);
     try {
-      const res = await api.get(`/events/${ev._id}/attendance/report`, { responseType: "blob" });
+      const res = await api.get(`/events/${ev._id}/attendance/report`, {
+        responseType: "blob",
+      });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement("a");
       a.href = url;
@@ -161,16 +193,20 @@ export default function Events() {
     return () => clearTimeout(timer);
   }, [studentQuery, manualEvent]);
 
-  const alreadyMarked = (studentId) => manualAttendance.some((a) => a.student?._id === studentId);
+  const alreadyMarked = (studentId) =>
+    manualAttendance.some((a) => a.student?._id === studentId);
 
   // Deliberately sends no location — this endpoint doesn't check it. An
   // admin can mark a student present from anywhere, not just the venue.
   const markPresent = async (student) => {
     setMarkingStudentId(student._id);
     try {
-      const { data } = await api.post(`/events/${manualEvent._id}/attendance/manual`, {
-        studentId: student._id,
-      });
+      const { data } = await api.post(
+        `/events/${manualEvent._id}/attendance/manual`,
+        {
+          studentId: student._id,
+        },
+      );
       setManualAttendance((prev) => [...prev, data.attendance]);
       toast.success(`Marked ${student.name} present`);
     } catch (err) {
@@ -197,24 +233,55 @@ export default function Events() {
   const getLocation = () =>
     new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error("Your browser doesn't support location access, which this event requires for check-in."));
+        reject(
+          new Error(
+            "Your browser doesn't support location access, which this event requires for check-in.",
+          ),
+        );
         return;
       }
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (pos) =>
+          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         (err) => {
           if (err.code === 1) {
-            reject(new Error("Location access was denied. Please allow location access in your browser settings and try again."));
+            reject(
+              new Error(
+                "Location access was denied. Please allow location access in your browser settings and try again.",
+              ),
+            );
           } else {
-            reject(new Error("Could not get your location. Make sure GPS/location services are on and try again."));
+            reject(
+              new Error(
+                "Could not get your location. Make sure GPS/location services are on and try again.",
+              ),
+            );
           }
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: true, timeout: 10000 },
       );
     });
 
-  const checkIn = async (e) => {
-    e.preventDefault();
+  // Populated on a successful check-in so the modal can show a proper
+  // confirmation (event name + hours credited) instead of just vanishing
+  // behind a toast — especially matters right after the camera closes,
+  // where an instant close feels like nothing happened.
+  const [checkinResult, setCheckinResult] = useState(null);
+  const checkinAutoCloseRef = useRef(null);
+
+  const closeCheckinModal = () => {
+    clearTimeout(checkinAutoCloseRef.current);
+    setActiveEvent(null);
+    setCheckinResult(null);
+    setCheckinCode("");
+    setScanning(false);
+  };
+
+  // Shared by both the manual-entry form submit and the scanner's onScan
+  // callback — `codeOverride` lets the scanner check in immediately with
+  // the freshly-decoded value instead of waiting on a state update.
+  const doCheckIn = async (codeOverride) => {
+    const code = (codeOverride ?? checkinCode).trim();
     setLocatingCheckin(true);
     let coords;
     try {
@@ -228,16 +295,33 @@ export default function Events() {
 
     try {
       await api.post(`/events/${activeEvent._id}/attendance/checkin`, {
-        code: checkinCode.trim(),
+        code,
         lat: coords.lat,
         lng: coords.lng,
       });
-      toast.success("Checked in! Hours credited.");
-      setActiveEvent(null);
-      setCheckinCode("");
+      setScanning(false);
+      setCheckinResult({
+        title: activeEvent.title,
+        hoursWorth: activeEvent.hoursWorth,
+        pointsWorth: activeEvent.pointsWorth,
+      });
+      load(); // refresh in the background so ev.checkedIn is already flipped by the time the modal closes
+      checkinAutoCloseRef.current = setTimeout(closeCheckinModal, 2200);
     } catch (err) {
       toast.error(err.response?.data?.message || "Check-in failed");
+      setScanning(false); // fall back to manual entry so they can retry/correct
     }
+  };
+
+  const checkIn = (e) => {
+    e.preventDefault();
+    doCheckIn();
+  };
+
+  const handleScan = (decodedText) => {
+    const id = extractEventId(decodedText);
+    setCheckinCode(id);
+    doCheckIn(id);
   };
 
   const openCreate = () => {
@@ -291,9 +375,13 @@ export default function Events() {
       },
       (err) => {
         setLocating(false);
-        toast.error(err.code === 1 ? "Location permission denied." : "Could not get your location.");
+        toast.error(
+          err.code === 1
+            ? "Location permission denied."
+            : "Could not get your location.",
+        );
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 10000 },
     );
   };
 
@@ -351,7 +439,9 @@ export default function Events() {
             : undefined
           : `${ev.registeredStudents?.length || 0} registered`,
       badgeClass:
-        user.role === "student" ? "bg-green-50 text-green-700" : "bg-primary-50 text-primary-700",
+        user.role === "student"
+          ? "bg-green-50 text-green-700"
+          : "bg-primary-50 text-primary-700",
     }));
 
   return (
@@ -402,11 +492,13 @@ export default function Events() {
               </p>
             )}
 
-            {user.role === "admin" && (ev.venueLat == null || ev.venueLng == null) && (
-              <p className="text-xs mb-3 text-amber-600 flex items-center gap-1">
-                <MapPin size={12} /> No venue location set — check-in won't be GPS-verified
-              </p>
-            )}
+            {user.role === "admin" &&
+              (ev.venueLat == null || ev.venueLng == null) && (
+                <p className="text-xs mb-3 text-amber-600 flex items-center gap-1">
+                  <MapPin size={12} /> No venue location set — check-in won't be
+                  GPS-verified
+                </p>
+              )}
 
             {user.role === "admin" ? (
               <div className="space-y-2">
@@ -447,19 +539,50 @@ export default function Events() {
               </button>
             )}
             {user.role === "student" && (
-              <button
-                className="btn-primary w-full text-sm mt-2"
-                onClick={() => setActiveEvent(ev)}
-              >
-                Enter attendance code
-              </button>
+              <div className="flex gap-2 mt-2">
+                {ev.checkedIn ? (
+                  <button
+                    disabled
+                    className="btn-secondary flex-1 text-sm flex items-center justify-center gap-1 text-green-600 border-green-200 bg-green-50 disabled:opacity-100 disabled:cursor-default"
+                  >
+                    <Check size={14} /> Checked in
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      className="btn-primary flex-1 text-sm flex items-center justify-center gap-1"
+                      onClick={() => {
+                        setActiveEvent(ev);
+                        setScanning(true);
+                      }}
+                    >
+                      <ScanLine size={14} /> Scan QR
+                    </button>
+                    <button
+                      className="btn-secondary flex-1 text-sm"
+                      onClick={() => {
+                        setActiveEvent(ev);
+                        setScanning(false);
+                      }}
+                    >
+                      Enter code
+                    </button>
+                  </>
+                )}
+              </div>
             )}
           </div>
         ))}
-        {liveEvents.length === 0 && <p className="text-ink/50">No upcoming events.</p>}
+        {liveEvents.length === 0 && (
+          <p className="text-ink/50">No upcoming events.</p>
+        )}
       </div>
 
-      <Ledger title="Past events" items={ledgerItems} onItemClick={openEventLedgerSummary} />
+      <Ledger
+        title="Past events"
+        items={ledgerItems}
+        onItemClick={openEventLedgerSummary}
+      />
 
       {/* Create/Edit event modal (admin) — same form serves both, based on
           whether editingId is set. */}
@@ -517,12 +640,14 @@ export default function Events() {
                 disabled={locating}
                 className="text-xs text-primary-600 hover:underline flex items-center gap-1 disabled:opacity-50"
               >
-                <Crosshair size={12} /> {locating ? "Locating…" : "Use my current location"}
+                <Crosshair size={12} />{" "}
+                {locating ? "Locating…" : "Use my current location"}
               </button>
             </div>
             <p className="text-xs text-ink/40 mb-2">
-              Required for check-in to verify students are actually at the venue. Stand at (or near) the venue and
-              tap "Use my current location", or enter coordinates manually.
+              Required for check-in to verify students are actually at the
+              venue. Stand at (or near) the venue and tap "Use my current
+              location", or enter coordinates manually.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
               <input
@@ -546,7 +671,9 @@ export default function Events() {
                 placeholder="Radius (m)"
                 className="input"
                 value={form.checkinRadiusMeters}
-                onChange={(e) => setForm({ ...form, checkinRadiusMeters: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, checkinRadiusMeters: e.target.value })
+                }
               />
             </div>
 
@@ -661,37 +788,92 @@ export default function Events() {
       {activeEvent && user.role === "student" && (
         <div
           className="fixed inset-0 bg-black/30 flex items-center justify-center z-30 p-4"
-          onClick={() => setActiveEvent(null)}
+          onClick={closeCheckinModal}
         >
-          <form
-            onSubmit={checkIn}
-            className="card w-full max-w-sm"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="font-medium mb-1">
-              Enter the Event ID shown on the coordinator's screen or QR
-            </p>
-            <p className="text-xs text-ink/50 mb-3">
-              {activeEvent.title} ·{" "}
-              {format(new Date(activeEvent.startTime), "MMM d, p")} –{" "}
-              {format(new Date(activeEvent.endTime), "p")}. Attendance only
-              works once your coordinator has opened it on-site, even during
-              this window.
-            </p>
-            <p className="text-xs text-ink/50 mb-3 flex items-center gap-1">
-              <MapPin size={12} className="text-primary-500 shrink-0" />
-              You'll be asked for location access — check-in only works if you're physically at the venue.
-            </p>
-            <input
-              className="input mb-3 font-mono text-sm"
-              value={checkinCode}
-              onChange={(e) => setCheckinCode(e.target.value)}
-              placeholder="Event ID"
-            />
-            <button className="btn-primary w-full" disabled={locatingCheckin}>
-              {locatingCheckin ? "Getting your location…" : "Check in"}
-            </button>
-          </form>
+          {checkinResult ? (
+            <div
+              className="card w-full max-w-sm text-center py-8"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-14 h-14 rounded-full bg-green-50 text-green-600 flex items-center justify-center mx-auto mb-4">
+                <Check size={28} />
+              </div>
+              <h3 className="font-display text-lg text-primary-900 mb-1">
+                Attendance marked!
+              </h3>
+              <p className="text-sm text-ink/60 mb-4">{checkinResult.title}</p>
+              <p className="text-xs text-ink/50 mb-6">
+                +{checkinResult.hoursWorth} hrs · +{checkinResult.pointsWorth}{" "}
+                pts credited
+              </p>
+              <button
+                className="btn-secondary w-full"
+                onClick={closeCheckinModal}
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <form
+              onSubmit={checkIn}
+              className="card w-full max-w-sm"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="font-medium mb-1">
+                {scanning
+                  ? "Scan the QR shown by your coordinator"
+                  : "Enter the Event ID shown on the coordinator's screen or QR"}
+              </p>
+              <p className="text-xs text-ink/50 mb-3">
+                {activeEvent.title} ·{" "}
+                {format(new Date(activeEvent.startTime), "MMM d, p")} –{" "}
+                {format(new Date(activeEvent.endTime), "p")}. Attendance only
+                works once your coordinator has opened it on-site, even during
+                this window.
+              </p>
+              <p className="text-xs text-ink/50 mb-3 flex items-center gap-1">
+                <MapPin size={12} className="text-primary-500 shrink-0" />
+                You'll be asked for location access — check-in only works if
+                you're physically at the venue.
+              </p>
+
+              {scanning ? (
+                <QrScanner
+                  onScan={handleScan}
+                  onClose={() => setScanning(false)}
+                />
+              ) : (
+                <input
+                  className="input mb-3 font-mono text-sm"
+                  value={checkinCode}
+                  onChange={(e) => setCheckinCode(e.target.value)}
+                  placeholder="Event ID"
+                />
+              )}
+
+              <button
+                type="button"
+                className="text-xs text-primary-600 mb-3 underline"
+                onClick={() => setScanning((s) => !s)}
+              >
+                {scanning ? "Type the code instead" : "Scan QR instead"}
+              </button>
+
+              {!scanning && (
+                <button
+                  className="btn-primary w-full"
+                  disabled={locatingCheckin}
+                >
+                  {locatingCheckin ? "Getting your location…" : "Check in"}
+                </button>
+              )}
+              {scanning && locatingCheckin && (
+                <p className="text-xs text-ink/50 text-center">
+                  Getting your location…
+                </p>
+              )}
+            </form>
+          )}
         </div>
       )}
 
@@ -724,8 +906,14 @@ export default function Events() {
           ledgerData?.event
             ? user.role === "admin"
               ? [
-                  { label: "Registered", value: ledgerData.event.registeredStudents?.length || 0 },
-                  { label: "Attended", value: ledgerData.attendance?.length || 0 },
+                  {
+                    label: "Registered",
+                    value: ledgerData.event.registeredStudents?.length || 0,
+                  },
+                  {
+                    label: "Attended",
+                    value: ledgerData.attendance?.length || 0,
+                  },
                 ]
               : [
                   { label: "Hours", value: ledgerData.event.hoursWorth },
@@ -738,9 +926,13 @@ export default function Events() {
             ? (ledgerData?.attendance || []).map((a) => ({
                 id: a._id,
                 primary: `${a.student?.name || "Unknown"} · ${a.student?.rollNo || "—"}`,
-                secondary: `${a.student?.branch || ""} ${a.student?.year ? `· Year ${a.student.year}` : ""}`.trim(),
+                secondary:
+                  `${a.student?.branch || ""} ${a.student?.year ? `· Year ${a.student.year}` : ""}`.trim(),
                 badge: a.method,
-                badgeClass: a.method === "manual" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700",
+                badgeClass:
+                  a.method === "manual"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-green-100 text-green-700",
                 note: `Checked in ${format(new Date(a.checkedInAt), "MMM d, p")}`,
               }))
             : ledgerData?.event
@@ -748,11 +940,19 @@ export default function Events() {
                   {
                     id: "me",
                     primary: user.name,
-                    secondary: ledgerData.event.registeredStudents?.includes(user._id)
+                    secondary: ledgerData.event.registeredStudents?.includes(
+                      user._id,
+                    )
                       ? "You registered for this event"
                       : "You did not register for this event",
-                    badge: ledgerData.event.registeredStudents?.includes(user._id) ? "Registered" : "Not registered",
-                    badgeClass: ledgerData.event.registeredStudents?.includes(user._id)
+                    badge: ledgerData.event.registeredStudents?.includes(
+                      user._id,
+                    )
+                      ? "Registered"
+                      : "Not registered",
+                    badgeClass: ledgerData.event.registeredStudents?.includes(
+                      user._id,
+                    )
                       ? "bg-green-100 text-green-700"
                       : "bg-ink/5 text-ink/50",
                   },
@@ -785,12 +985,16 @@ export default function Events() {
               Mark attendance manually
             </h3>
             <p className="text-xs text-ink/50 mb-4">
-              {manualEvent.title} · No location check — you can mark a student present from
-              anywhere. Use this when a student can't complete the normal check-in themselves.
+              {manualEvent.title} · No location check — you can mark a student
+              present from anywhere. Use this when a student can't complete the
+              normal check-in themselves.
             </p>
 
             <div className="relative mb-3">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/30" />
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/30"
+              />
               <input
                 autoFocus
                 className="input pl-8"
@@ -812,7 +1016,9 @@ export default function Events() {
                       className="border border-primary-100 rounded-xl p-3 flex items-center justify-between gap-3"
                     >
                       <div className="min-w-0">
-                        <p className="font-medium text-ink text-sm truncate">{s.name}</p>
+                        <p className="font-medium text-ink text-sm truncate">
+                          {s.name}
+                        </p>
                         <p className="text-xs text-ink/50 truncate">
                           {s.rollNo} · {s.branch} · Y{s.year}
                         </p>
@@ -841,7 +1047,9 @@ export default function Events() {
                 })}
                 {!searchingStudents && studentResults.length === 0 && (
                   <p className="text-xs text-ink/40 text-center py-2">
-                    {studentQuery.trim() ? "No students found." : "Type to search students."}
+                    {studentQuery.trim()
+                      ? "No students found."
+                      : "Type to search students."}
                   </p>
                 )}
               </ul>

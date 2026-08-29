@@ -15,45 +15,23 @@ async function seed() {
 
   const admin = await User.create({
     name: 'Dr. NSS Coordinator',
-    email: 'admin@dtu.ac.in',
-    password: '@Admin2609',
+    email: '',
+    password: '',
     role: 'admin',
     isVerified: true,
   });
 
   const demoStudents = [
-    { name: 'Demo', email: 'demo@dtu.ac.in', rollNo: 'demo', branch: 'NA', year: 1, section: 'NA' },
+    { name: 'Demo', email: '', rollNo: 'demo', branch: 'NA', year: 1, section: 'NA' },
   ];
   const students = [];
   for (const s of demoStudents) {
-    students.push(await User.create({ ...s, password: '@Demo2609', role: 'student', isVerified: true }));
+    students.push(await User.create({ ...s, password: '', role: 'student', isVerified: true }));
   }
 
-  await Task.create({
-    title: 'Plantation Drive at DTU Campus',
-    description: 'Plant and label at least 5 saplings near the main auditorium. Submit a photo as proof.',
-    category: 'plantation',
-    createdBy: admin._id,
-    assignedTo: { scope: 'all' },
-    points: 20,
-    hoursWorth: 3,
-    deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    proofType: 'image',
-  });
 
-  await Event.create({
-    title: 'Blood Donation Camp',
-    description: 'Annual NSS blood donation camp in collaboration with Red Cross.',
-    location: 'DTU Sports Complex',
-    createdBy: admin._id,
-    startTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-    endTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000),
-    hoursWorth: 4,
-    pointsWorth: 30,
-  });
-
-  console.log('Seed complete. Admin login: admin@dtu.ac.in / @Admin2609');
-  console.log('Student login: demo@dtu.ac.in / @Demo2609');
+  console.log('Seed complete.');
+  console.log('Student login');
   await mongoose.disconnect();
 }
 

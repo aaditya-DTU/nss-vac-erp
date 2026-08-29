@@ -1,59 +1,87 @@
-require('dotenv').config();
-const mongoose = require('mongoose');
-const connectDB = require('../config/db');
-const User = require('../models/User');
-const Task = require('../models/Task');
-const Event = require('../models/Event');
-const KnowledgeBase = require('../models/KnowledgeBase');
-const { defaultFaqs } = require('./defaultFaqs');
+require("dotenv").config();
+const mongoose = require("mongoose");
+const connectDB = require("../config/db");
+const User = require("../models/User");
+const Task = require("../models/Task");
+const Event = require("../models/Event");
+const KnowledgeBase = require("../models/KnowledgeBase");
+const { defaultFaqs } = require("./defaultFaqs");
+
+// Credentials come from .env (never hardcoded/committed) — see .env.example
+// for the required keys. Fails fast rather than silently seeding a weak
+// default if any are missing, since this script can run against a real
+// deployed database.
+const {
+  SEED_ADMIN_EMAIL,
+  SEED_ADMIN_PASSWORD,
+  SEED_DEMO_EMAIL,
+  SEED_DEMO_PASSWORD,
+} = process.env;
+
+function requireEnv() {
+  const missing = [
+    "SEED_ADMIN_EMAIL",
+    "SEED_ADMIN_PASSWORD",
+    "SEED_DEMO_EMAIL",
+    "SEED_DEMO_PASSWORD",
+  ].filter((key) => !process.env[key]);
+  if (missing.length) {
+    console.error(
+      `Missing required env vars for seeding: ${missing.join(", ")}`,
+    );
+    console.error(
+      "Set these in your .env before running the seed script — see .env.example.",
+    );
+    process.exit(1);
+  }
+}
 
 async function seed() {
+  requireEnv();
   await connectDB();
-  await Promise.all([User.deleteMany({}), Task.deleteMany({}), Event.deleteMany({}), KnowledgeBase.deleteMany({})]);
+  await Promise.all([
+    User.deleteMany({}),
+    Task.deleteMany({}),
+    Event.deleteMany({}),
+    KnowledgeBase.deleteMany({}),
+  ]);
 
   await KnowledgeBase.insertMany(defaultFaqs());
 
   const admin = await User.create({
-    name: 'Dr. NSS Coordinator',
-    email: 'admin@dtu.ac.in',
-    password: '@Admin2609',
-    role: 'admin',
+    name: "Dr. NSS Coordinator",
+    email: SEED_ADMIN_EMAIL,
+    password: SEED_ADMIN_PASSWORD,
+    role: "admin",
     isVerified: true,
   });
 
   const demoStudents = [
-    { name: 'Demo', email: 'demo@dtu.ac.in', rollNo: 'demo', branch: 'NA', year: 1, section: 'NA' },
+    {
+      name: "Demo",
+      email: SEED_DEMO_EMAIL,
+      rollNo: "demo",
+      branch: "NA",
+      year: 1,
+      section: "NA",
+    },
   ];
   const students = [];
   for (const s of demoStudents) {
-    students.push(await User.create({ ...s, password: '@Demo2609', role: 'student', isVerified: true }));
+    students.push(
+      await User.create({
+        ...s,
+        password: SEED_DEMO_PASSWORD,
+        role: "student",
+        isVerified: true,
+      }),
+    );
   }
 
-  await Task.create({
-    title: 'Plantation Drive at DTU Campus',
-    description: 'Plant and label at least 5 saplings near the main auditorium. Submit a photo as proof.',
-    category: 'plantation',
-    createdBy: admin._id,
-    assignedTo: { scope: 'all' },
-    points: 20,
-    hoursWorth: 3,
-    deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    proofType: 'image',
-  });
 
-  await Event.create({
-    title: 'Blood Donation Camp',
-    description: 'Annual NSS blood donation camp in collaboration with Red Cross.',
-    location: 'DTU Sports Complex',
-    createdBy: admin._id,
-    startTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-    endTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000),
-    hoursWorth: 4,
-    pointsWorth: 30,
-  });
-
-  console.log('Seed complete. Admin login: admin@dtu.ac.in / @Admin2609');
-  console.log('Student login: demo@dtu.ac.in / @Demo2609');
+  console.log("Seed complete.");
+  console.log(`Admin login: ${SEED_ADMIN_EMAIL} / (password from .env)`);
+  console.log(`Student login: ${SEED_DEMO_EMAIL} / (password from .env)`);
   await mongoose.disconnect();
 }
 

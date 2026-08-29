@@ -66,8 +66,12 @@ exports.listUsers = async (req, res, next) => {
     }
 
     const skip = (Number(page) - 1) * Number(limit);
+    // Students are naturally browsed by roll number, not signup order —
+    // ascending (non-decreasing) rollNo for student listings; every other
+    // role keeps the previous newest-first ordering.
+    const sort = role === "student" ? { rollNo: 1 } : { createdAt: -1 };
     const [users, total] = await Promise.all([
-      User.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
+      User.find(query).sort(sort).skip(skip).limit(Number(limit)),
       User.countDocuments(query),
     ]);
 

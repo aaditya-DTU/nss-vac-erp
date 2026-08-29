@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
-import { usePageTitle } from '../../context/PageTitleContext';
-import api from '../../api/axios';
-import { format } from 'date-fns';
+import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import { usePageTitle } from "../../context/PageTitleContext";
+import api from "../../api/axios";
+import { format } from "date-fns";
 import {
   Award,
   FileSpreadsheet,
@@ -13,13 +13,19 @@ import {
   Pencil,
   Power,
   Save,
-} from 'lucide-react';
+  AlertTriangle,
+} from "lucide-react";
 
 export default function AdminStudents() {
   usePageTitle("Students");
   const [students, setStudents] = useState([]);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [exporting, setExporting] = useState(false);
+  // 'active' (default): verified + active only. 'all': everyone, with a
+  // status badge on rows that are unverified or deactivated — the sanity-
+  // check view for spotting stuck signups or accidentally-deactivated
+  // accounts without permanently hiding them.
+  const [showAll, setShowAll] = useState(false);
 
   // Combined admin panel — clicking a row opens this. Shows editable
   // profile fields, the student's full participation/activity history,
@@ -33,33 +39,44 @@ export default function AdminStudents() {
   const [saving, setSaving] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
 
-  const load = () => api.get('/users', { params: { role: 'student', search } }).then((r) => setStudents(r.data.users));
-  useEffect(() => { load(); }, [search]);
+  const load = () =>
+    api
+      .get("/users", {
+        params: showAll
+          ? { role: "student", search }
+          : { role: "student", search, isVerified: true, isActive: true },
+      })
+      .then((r) => setStudents(r.data.users));
+  useEffect(() => {
+    load();
+  }, [search, showAll]);
 
   const issueCertificate = async (studentId) => {
     try {
       await api.post(`/certificates/issue/${studentId}`);
-      toast.success('Certificate issued');
+      toast.success("Certificate issued");
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Not eligible yet');
+      toast.error(err.response?.data?.message || "Not eligible yet");
     }
   };
 
   const exportReport = async () => {
     setExporting(true);
     try {
-      const res = await api.get('/reports/nss-summary', { responseType: 'blob' });
+      const res = await api.get("/reports/nss-summary", {
+        responseType: "blob",
+      });
       const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `nss-vac-report-${Date.now()}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      toast.success('Report downloaded');
+      toast.success("Report downloaded");
     } catch {
-      toast.error('Could not generate report');
+      toast.error("Could not generate report");
     } finally {
       setExporting(false);
     }
@@ -69,18 +86,18 @@ export default function AdminStudents() {
     setPanelFor(student);
     setIsEditing(false);
     setEditForm({
-      name: student.name || '',
-      rollNo: student.rollNo || '',
-      branch: student.branch || '',
-      year: student.year || '',
-      email: student.email || '',
+      name: student.name || "",
+      rollNo: student.rollNo || "",
+      branch: student.branch || "",
+      year: student.year || "",
+      email: student.email || "",
     });
     setLoadingActivity(true);
     try {
       const { data } = await api.get(`/users/${student._id}/activity`);
       setActivity(data);
     } catch {
-      toast.error('Could not load activity');
+      toast.error("Could not load activity");
     } finally {
       setLoadingActivity(false);
     }
@@ -97,12 +114,14 @@ export default function AdminStudents() {
     setSaving(true);
     try {
       const { data } = await api.patch(`/users/${panelFor._id}`, editForm);
-      toast.success('Student updated');
-      setStudents((prev) => prev.map((s) => (s._id === panelFor._id ? { ...s, ...data.user } : s)));
+      toast.success("Student updated");
+      setStudents((prev) =>
+        prev.map((s) => (s._id === panelFor._id ? { ...s, ...data.user } : s)),
+      );
       setPanelFor((prev) => ({ ...prev, ...data.user }));
       setIsEditing(false);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Update failed');
+      toast.error(err.response?.data?.message || "Update failed");
     } finally {
       setSaving(false);
     }
@@ -111,27 +130,38 @@ export default function AdminStudents() {
   const cancelEdit = () => {
     // Revert any unsaved changes back to the student's current values.
     setEditForm({
-      name: panelFor.name || '',
-      rollNo: panelFor.rollNo || '',
-      branch: panelFor.branch || '',
-      year: panelFor.year || '',
-      email: panelFor.email || '',
+      name: panelFor.name || "",
+      rollNo: panelFor.rollNo || "",
+      branch: panelFor.branch || "",
+      year: panelFor.year || "",
+      email: panelFor.email || "",
     });
     setIsEditing(false);
   };
 
   const toggleStatus = async (student) => {
     const next = !student.isActive;
-    const label = next ? 'activate' : 'deactivate';
-    if (!window.confirm(`Are you sure you want to ${label} ${student.name}?`)) return;
+    const label = next ? "activate" : "deactivate";
+    if (!window.confirm(`Are you sure you want to ${label} ${student.name}?`))
+      return;
     setTogglingStatus(true);
     try {
-      const { data } = await api.patch(`/users/${student._id}`, { isActive: next });
-      toast.success(`Student ${next ? 'activated' : 'deactivated'}`);
-      setStudents((prev) => prev.map((s) => (s._id === student._id ? { ...s, isActive: data.user.isActive } : s)));
-      setPanelFor((prev) => (prev && prev._id === student._id ? { ...prev, isActive: data.user.isActive } : prev));
+      const { data } = await api.patch(`/users/${student._id}`, {
+        isActive: next,
+      });
+      toast.success(`Student ${next ? "activated" : "deactivated"}`);
+      setStudents((prev) =>
+        prev.map((s) =>
+          s._id === student._id ? { ...s, isActive: data.user.isActive } : s,
+        ),
+      );
+      setPanelFor((prev) =>
+        prev && prev._id === student._id
+          ? { ...prev, isActive: data.user.isActive }
+          : prev,
+      );
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not update status');
+      toast.error(err.response?.data?.message || "Could not update status");
     } finally {
       setTogglingStatus(false);
     }
@@ -139,15 +169,43 @@ export default function AdminStudents() {
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row gap-3 justify-between mb-5">
+      <div className="flex flex-col sm:flex-row gap-3 justify-between mb-3">
         <input
           className="input sm:w-72"
           placeholder="Search by name, roll no, email…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <button onClick={exportReport} disabled={exporting} className="btn-secondary flex items-center gap-2">
-          <FileSpreadsheet size={16} /> {exporting ? 'Generating…' : 'Export NSS report'}
+        <button
+          onClick={exportReport}
+          disabled={exporting}
+          className="btn-secondary flex items-center gap-2"
+        >
+          <FileSpreadsheet size={16} />{" "}
+          {exporting ? "Generating…" : "Export NSS report"}
+        </button>
+      </div>
+
+      <div className="flex gap-2 mb-5">
+        <button
+          onClick={() => setShowAll(false)}
+          className={`text-xs px-3 py-1.5 rounded-lg border ${
+            !showAll
+              ? "bg-primary-600 text-white border-primary-600"
+              : "text-ink/50 border-primary-100 hover:bg-primary-50"
+          }`}
+        >
+          Active students
+        </button>
+        <button
+          onClick={() => setShowAll(true)}
+          className={`text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+            showAll
+              ? "bg-primary-600 text-white border-primary-600"
+              : "text-ink/50 border-primary-100 hover:bg-primary-50"
+          }`}
+        >
+          <AlertTriangle size={12} /> All (incl. unverified/inactive)
         </button>
       </div>
 
@@ -170,16 +228,41 @@ export default function AdminStudents() {
                 onClick={() => openPanel(s)}
                 className="border-b border-primary-50 last:border-0 cursor-pointer hover:bg-primary-50/50 transition-colors"
               >
-                <td className="py-2.5 pr-4 font-medium">{s.name}</td>
+                <td className="py-2.5 pr-4 font-medium">
+                  <div className="flex items-center gap-2">
+                    {s.name}
+                    {!s.isVerified && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                        Unverified
+                      </span>
+                    )}
+                    {!s.isActive && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-200">
+                        Inactive
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="py-2.5 pr-4 text-ink/60">{s.rollNo}</td>
-                <td className="py-2.5 pr-4 text-ink/60">{s.branch} · Y{s.year}</td>
+                <td className="py-2.5 pr-4 text-ink/60">
+                  {s.branch} · Y{s.year}
+                </td>
                 <td className="py-2.5 pr-4">{s.totalHours}</td>
                 <td className="py-2.5 pr-4">{s.totalPoints}</td>
-                <td className="py-2.5 pr-4 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => openPanel(s)} className="text-primary-600 hover:underline flex items-center gap-1 text-xs">
+                <td
+                  className="py-2.5 pr-4 flex items-center gap-3"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => openPanel(s)}
+                    className="text-primary-600 hover:underline flex items-center gap-1 text-xs"
+                  >
                     <Activity size={14} /> Attendance
                   </button>
-                  <button onClick={() => issueCertificate(s._id)} className="text-primary-600 hover:underline flex items-center gap-1 text-xs">
+                  <button
+                    onClick={() => issueCertificate(s._id)}
+                    className="text-primary-600 hover:underline flex items-center gap-1 text-xs"
+                  >
                     <Award size={14} /> Certificate
                   </button>
                 </td>
@@ -187,32 +270,50 @@ export default function AdminStudents() {
             ))}
           </tbody>
         </table>
-        {students.length === 0 && <p className="text-ink/50 text-sm py-4 text-center">No students found.</p>}
+        {students.length === 0 && (
+          <p className="text-ink/50 text-sm py-4 text-center">
+            No students found.
+          </p>
+        )}
       </div>
 
       {/* Combined edit + participation panel */}
       {panelFor && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-30 p-4" onClick={closePanel}>
-          <div className="card w-full max-w-2xl max-h-[85vh] overflow-y-auto relative" onClick={(e) => e.stopPropagation()}>
-            <button onClick={closePanel} className="absolute right-4 top-4 text-ink/40 hover:text-ink">
+        <div
+          className="fixed inset-0 bg-black/30 flex items-center justify-center z-30 p-4"
+          onClick={closePanel}
+        >
+          <div
+            className="card w-full max-w-2xl max-h-[85vh] overflow-y-auto relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closePanel}
+              className="absolute right-4 top-4 text-ink/40 hover:text-ink"
+            >
               <X size={20} />
             </button>
 
             <div className="flex items-start justify-between gap-3 mb-1 pr-8">
-              <h3 className="font-display text-xl text-primary-900 min-w-0 break-words">{panelFor.name}</h3>
+              <h3 className="font-display text-xl text-primary-900 min-w-0 break-words">
+                {panelFor.name}
+              </h3>
               <button
                 onClick={() => toggleStatus(panelFor)}
                 disabled={togglingStatus}
                 className={`shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border ${
                   panelFor.isActive
-                    ? 'text-red-600 border-red-200 hover:bg-red-50'
-                    : 'text-green-600 border-green-200 hover:bg-green-50'
+                    ? "text-red-600 border-red-200 hover:bg-red-50"
+                    : "text-green-600 border-green-200 hover:bg-green-50"
                 }`}
               >
-                <Power size={14} /> {panelFor.isActive ? 'Deactivate' : 'Activate'}
+                <Power size={14} />{" "}
+                {panelFor.isActive ? "Deactivate" : "Activate"}
               </button>
             </div>
-            <p className="text-xs text-ink/50 mb-4">{panelFor.rollNo} · {panelFor.branch} · Y{panelFor.year}</p>
+            <p className="text-xs text-ink/50 mb-4">
+              {panelFor.rollNo} · {panelFor.branch} · Y{panelFor.year}
+            </p>
 
             {/* Details block — read-only by default. "Edit details" reveals
                 the editable form below; nothing is editable until the admin
@@ -220,7 +321,13 @@ export default function AdminStudents() {
             <div className="mb-6 border border-primary-100 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-semibold text-ink flex items-center gap-1.5">
-                  {isEditing ? <><Pencil size={14} /> Edit profile</> : 'Student details'}
+                  {isEditing ? (
+                    <>
+                      <Pencil size={14} /> Edit profile
+                    </>
+                  ) : (
+                    "Student details"
+                  )}
                 </p>
                 {!isEditing && (
                   <button
@@ -235,37 +342,85 @@ export default function AdminStudents() {
               {!isEditing && editForm && (
                 <div className="grid grid-cols-2 gap-y-2 text-sm">
                   <span className="text-ink/50">Name</span>
-                  <span className="text-ink font-medium">{editForm.name || '—'}</span>
+                  <span className="text-ink font-medium">
+                    {editForm.name || "—"}
+                  </span>
                   <span className="text-ink/50">Roll No.</span>
-                  <span className="text-ink font-medium">{editForm.rollNo || '—'}</span>
+                  <span className="text-ink font-medium">
+                    {editForm.rollNo || "—"}
+                  </span>
                   <span className="text-ink/50">Branch</span>
-                  <span className="text-ink font-medium">{editForm.branch || '—'}</span>
+                  <span className="text-ink font-medium">
+                    {editForm.branch || "—"}
+                  </span>
                   <span className="text-ink/50">Year</span>
-                  <span className="text-ink font-medium">{editForm.year || '—'}</span>
+                  <span className="text-ink font-medium">
+                    {editForm.year || "—"}
+                  </span>
                   <span className="text-ink/50">Email</span>
-                  <span className="text-ink font-medium truncate">{editForm.email || '—'}</span>
+                  <span className="text-ink font-medium truncate">
+                    {editForm.email || "—"}
+                  </span>
                 </div>
               )}
 
               {isEditing && editForm && (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input className="input" placeholder="Name" value={editForm.name}
-                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-                    <input className="input" placeholder="Roll No." value={editForm.rollNo}
-                      onChange={(e) => setEditForm({ ...editForm, rollNo: e.target.value })} />
-                    <input className="input" placeholder="Branch" value={editForm.branch}
-                      onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })} />
-                    <input className="input" placeholder="Year" value={editForm.year}
-                      onChange={(e) => setEditForm({ ...editForm, year: e.target.value })} />
-                    <input className="input col-span-2" placeholder="Email" value={editForm.email}
-                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+                    <input
+                      className="input"
+                      placeholder="Name"
+                      value={editForm.name}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, name: e.target.value })
+                      }
+                    />
+                    <input
+                      className="input"
+                      placeholder="Roll No."
+                      value={editForm.rollNo}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, rollNo: e.target.value })
+                      }
+                    />
+                    <input
+                      className="input"
+                      placeholder="Branch"
+                      value={editForm.branch}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, branch: e.target.value })
+                      }
+                    />
+                    <input
+                      className="input"
+                      placeholder="Year"
+                      value={editForm.year}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, year: e.target.value })
+                      }
+                    />
+                    <input
+                      className="input col-span-2"
+                      placeholder="Email"
+                      value={editForm.email}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, email: e.target.value })
+                      }
+                    />
                   </div>
                   <div className="mt-3 flex items-center gap-2">
-                    <button onClick={saveEdit} disabled={saving} className="btn-primary flex items-center gap-2 text-xs">
-                      <Save size={14} /> {saving ? 'Saving…' : 'Save changes'}
+                    <button
+                      onClick={saveEdit}
+                      disabled={saving}
+                      className="btn-primary flex items-center gap-2 text-xs"
+                    >
+                      <Save size={14} /> {saving ? "Saving…" : "Save changes"}
                     </button>
-                    <button onClick={cancelEdit} disabled={saving} className="btn-secondary text-xs">
+                    <button
+                      onClick={cancelEdit}
+                      disabled={saving}
+                      className="btn-secondary text-xs"
+                    >
                       Cancel
                     </button>
                   </div>
@@ -273,51 +428,82 @@ export default function AdminStudents() {
               )}
             </div>
 
-            {loadingActivity && <p className="text-sm text-ink/50">Loading activity…</p>}
+            {loadingActivity && (
+              <p className="text-sm text-ink/50">Loading activity…</p>
+            )}
 
             {activity && (
               <>
                 <div className="grid grid-cols-3 gap-3 mb-6">
                   <div className="bg-primary-50 rounded-xl p-3 text-center">
-                    <p className="text-xl font-semibold text-primary-800">{activity.student.totalHours}</p>
+                    <p className="text-xl font-semibold text-primary-800">
+                      {activity.student.totalHours}
+                    </p>
                     <p className="text-xs text-ink/50">Hours</p>
                   </div>
                   <div className="bg-primary-50 rounded-xl p-3 text-center">
-                    <p className="text-xl font-semibold text-primary-800">{activity.student.totalPoints}</p>
+                    <p className="text-xl font-semibold text-primary-800">
+                      {activity.student.totalPoints}
+                    </p>
                     <p className="text-xs text-ink/50">Points</p>
                   </div>
                   <div className="bg-primary-50 rounded-xl p-3 text-center">
-                    <p className="text-xl font-semibold text-primary-800">{activity.attendance.length}</p>
+                    <p className="text-xl font-semibold text-primary-800">
+                      {activity.attendance.length}
+                    </p>
                     <p className="text-xs text-ink/50">Events attended</p>
                   </div>
                 </div>
 
-                <p className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><Activity size={14} /> Event attendance</p>
+                <p className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5">
+                  <Activity size={14} /> Event attendance
+                </p>
                 <ul className="space-y-2 mb-6">
                   {activity.attendance.map((a) => (
-                    <li key={a._id} className="flex items-center justify-between text-sm border-b border-primary-50 pb-2">
+                    <li
+                      key={a._id}
+                      className="flex items-center justify-between text-sm border-b border-primary-50 pb-2"
+                    >
                       <div className="flex items-center gap-2">
                         <MapPin size={14} className="text-primary-500" />
-                        <span>{a.event?.title || 'Deleted event'}</span>
+                        <span>{a.event?.title || "Deleted event"}</span>
                       </div>
-                      <span className="text-xs text-ink/50">{format(new Date(a.checkedInAt), 'MMM d, p')} · {a.method}</span>
+                      <span className="text-xs text-ink/50">
+                        {format(new Date(a.checkedInAt), "MMM d, p")} ·{" "}
+                        {a.method}
+                      </span>
                     </li>
                   ))}
-                  {activity.attendance.length === 0 && <p className="text-xs text-ink/40">No event check-ins yet.</p>}
+                  {activity.attendance.length === 0 && (
+                    <p className="text-xs text-ink/40">
+                      No event check-ins yet.
+                    </p>
+                  )}
                 </ul>
 
-                <p className="text-sm font-semibold text-ink mb-2">Approved tasks</p>
+                <p className="text-sm font-semibold text-ink mb-2">
+                  Approved tasks
+                </p>
                 <ul className="space-y-2">
                   {activity.submissions.map((s) => (
-                    <li key={s._id} className="flex items-center justify-between text-sm border-b border-primary-50 pb-2">
+                    <li
+                      key={s._id}
+                      className="flex items-center justify-between text-sm border-b border-primary-50 pb-2"
+                    >
                       <div className="flex items-center gap-2">
                         <CheckCircle2 size={14} className="text-green-600" />
-                        <span>{s.task?.title || 'Deleted task'}</span>
+                        <span>{s.task?.title || "Deleted task"}</span>
                       </div>
-                      <span className="text-xs text-ink/50">{format(new Date(s.reviewedAt), 'MMM d, yyyy')}</span>
+                      <span className="text-xs text-ink/50">
+                        {format(new Date(s.reviewedAt), "MMM d, yyyy")}
+                      </span>
                     </li>
                   ))}
-                  {activity.submissions.length === 0 && <p className="text-xs text-ink/40">No approved tasks yet.</p>}
+                  {activity.submissions.length === 0 && (
+                    <p className="text-xs text-ink/40">
+                      No approved tasks yet.
+                    </p>
+                  )}
                 </ul>
               </>
             )}

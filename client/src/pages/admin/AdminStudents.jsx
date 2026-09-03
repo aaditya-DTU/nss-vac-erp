@@ -37,6 +37,10 @@ export default function AdminStudents() {
   // check view for spotting stuck signups or accidentally-deactivated
   // accounts without permanently hiding them.
   const [showAll, setShowAll] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const LIMIT = 20;
 
   // Combined admin panel — clicking a row opens this. Shows editable
   // profile fields, the student's full participation/activity history,
@@ -81,13 +85,24 @@ export default function AdminStudents() {
     api
       .get("/users", {
         params: showAll
-          ? { role: "student", search }
-          : { role: "student", search, isVerified: true, isActive: true },
+          ? { role: "student", search, page, limit: LIMIT }
+          : {
+              role: "student",
+              search,
+              isVerified: true,
+              isActive: true,
+              page,
+              limit: LIMIT,
+            },
       })
-      .then((r) => setStudents(r.data.users));
+      .then((r) => {
+        setStudents(r.data.users);
+        setPages(r.data.pages || 1);
+        setTotal(r.data.total || 0);
+      });
   useEffect(() => {
     load();
-  }, [search, showAll]);
+  }, [search, showAll, page]);
 
   const issueCertificate = async (studentId) => {
     try {
@@ -214,7 +229,10 @@ export default function AdminStudents() {
           className="input sm:w-72"
           placeholder="Search by name, roll no, email…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
         />
         <div className="flex gap-2">
           <button
@@ -236,7 +254,10 @@ export default function AdminStudents() {
 
       <div className="flex gap-2 mb-5">
         <button
-          onClick={() => setShowAll(false)}
+          onClick={() => {
+            setShowAll(false);
+            setPage(1);
+          }}
           className={`text-xs px-3 py-1.5 rounded-lg border ${
             !showAll
               ? "bg-primary-600 text-white border-primary-600"
@@ -246,7 +267,10 @@ export default function AdminStudents() {
           Active students
         </button>
         <button
-          onClick={() => setShowAll(true)}
+          onClick={() => {
+            setShowAll(true);
+            setPage(1);
+          }}
           className={`text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${
             showAll
               ? "bg-primary-600 text-white border-primary-600"
@@ -322,6 +346,29 @@ export default function AdminStudents() {
           <p className="text-ink/50 text-sm py-4 text-center">
             No students found.
           </p>
+        )}
+        {students.length > 0 && (
+          <div className="flex items-center justify-between px-1 pt-3 mt-2 border-t border-primary-100 text-sm text-ink/60">
+            <span>
+              Page {page} of {pages} · {total} student{total === 1 ? "" : "s"}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="btn-secondary px-3 py-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                disabled={page >= pages}
+                className="btn-secondary px-3 py-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

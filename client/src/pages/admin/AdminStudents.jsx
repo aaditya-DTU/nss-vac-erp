@@ -14,7 +14,18 @@ import {
   Power,
   Save,
   AlertTriangle,
+  UserPlus,
 } from "lucide-react";
+
+const emptyNewStudent = {
+  name: "",
+  email: "",
+  password: "",
+  rollNo: "",
+  branch: "",
+  year: "",
+  section: "",
+};
 
 export default function AdminStudents() {
   usePageTitle("Students");
@@ -38,6 +49,33 @@ export default function AdminStudents() {
   const [isEditing, setIsEditing] = useState(false); // panel opens read-only; this flips on "Edit details"
   const [saving, setSaving] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
+
+  // Manual "Add student" modal — admin-provisioned accounts skip OTP
+  // verification entirely (see createUser on the backend, isVerified: true
+  // is set there), so this immediately gives the student a working login.
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newStudent, setNewStudent] = useState(emptyNewStudent);
+  const [creating, setCreating] = useState(false);
+
+  const createStudent = async (e) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      await api.post("/users", {
+        ...newStudent,
+        year: newStudent.year ? Number(newStudent.year) : undefined,
+        role: "student",
+      });
+      toast.success(`${newStudent.name} added`);
+      setShowAddModal(false);
+      setNewStudent(emptyNewStudent);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not add student");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const load = () =>
     api
@@ -176,14 +214,22 @@ export default function AdminStudents() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <button
-          onClick={exportReport}
-          disabled={exporting}
-          className="btn-secondary flex items-center gap-2"
-        >
-          <FileSpreadsheet size={16} />{" "}
-          {exporting ? "Generating…" : "Export NSS report"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <UserPlus size={16} /> Add student
+          </button>
+          <button
+            onClick={exportReport}
+            disabled={exporting}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <FileSpreadsheet size={16} />{" "}
+            {exporting ? "Generating…" : "Export NSS report"}
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2 mb-5">
@@ -508,6 +554,129 @@ export default function AdminStudents() {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div
+          className="fixed inset-0 bg-black/30 flex items-center justify-center z-30 p-4"
+          onClick={() => setShowAddModal(false)}
+        >
+          <form
+            onSubmit={createStudent}
+            className="card w-full max-w-md max-h-[90vh] overflow-y-auto relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setShowAddModal(false)}
+              className="absolute right-4 top-4 text-ink/40 hover:text-ink"
+            >
+              <X size={20} />
+            </button>
+            <h3 className="font-display text-lg text-primary-900 mb-1 pr-8">
+              Add student
+            </h3>
+            <p className="text-xs text-ink/50 mb-4">
+              Creates a login directly — no email verification step, the student
+              can sign in immediately with the email and password you set here.
+            </p>
+
+            <label className="text-sm font-medium text-ink/70">Name</label>
+            <input
+              required
+              className="input mt-1 mb-3"
+              value={newStudent.name}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, name: e.target.value })
+              }
+            />
+
+            <label className="text-sm font-medium text-ink/70">Email</label>
+            <input
+              required
+              type="email"
+              className="input mt-1 mb-3"
+              placeholder="student@dtu.ac.in"
+              value={newStudent.email}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, email: e.target.value })
+              }
+            />
+
+            <label className="text-sm font-medium text-ink/70">Password</label>
+            <input
+              required
+              type="text"
+              minLength={6}
+              className="input mt-1 mb-3"
+              placeholder="Set an initial password"
+              value={newStudent.password}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, password: e.target.value })
+              }
+            />
+
+            <label className="text-sm font-medium text-ink/70">
+              Roll number
+            </label>
+            <input
+              className="input mt-1 mb-3"
+              placeholder="2K23/MC/01"
+              value={newStudent.rollNo}
+              onChange={(e) =>
+                setNewStudent({ ...newStudent, rollNo: e.target.value })
+              }
+            />
+
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div>
+                <label className="text-sm font-medium text-ink/70">
+                  Branch
+                </label>
+                <input
+                  className="input mt-1"
+                  value={newStudent.branch}
+                  onChange={(e) =>
+                    setNewStudent({ ...newStudent, branch: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-ink/70">Year</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={4}
+                  className="input mt-1"
+                  value={newStudent.year}
+                  onChange={(e) =>
+                    setNewStudent({ ...newStudent, year: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-ink/70">
+                  Section
+                </label>
+                <input
+                  className="input mt-1"
+                  value={newStudent.section}
+                  onChange={(e) =>
+                    setNewStudent({ ...newStudent, section: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={creating}
+              className="btn-primary w-full"
+            >
+              {creating ? "Adding…" : "Add student"}
+            </button>
+          </form>
         </div>
       )}
     </>

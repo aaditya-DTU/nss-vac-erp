@@ -129,6 +129,7 @@ export default function AdminStudents() {
       branch: student.branch || "",
       year: student.year || "",
       email: student.email || "",
+      isVerified: Boolean(student.isVerified),
     });
     setLoadingActivity(true);
     try {
@@ -173,6 +174,7 @@ export default function AdminStudents() {
       branch: panelFor.branch || "",
       year: panelFor.year || "",
       email: panelFor.email || "",
+      isVerified: Boolean(panelFor.isVerified),
     });
     setIsEditing(false);
   };
@@ -407,6 +409,10 @@ export default function AdminStudents() {
                   <span className="text-ink font-medium truncate">
                     {editForm.email || "—"}
                   </span>
+                  <span className="text-ink/50">Verification</span>
+                  <span className="text-ink font-medium">
+                    {editForm.isVerified ? "Verified" : "Unverified"}
+                  </span>
                 </div>
               )}
 
@@ -453,6 +459,20 @@ export default function AdminStudents() {
                         setEditForm({ ...editForm, email: e.target.value })
                       }
                     />
+                    <label className="col-span-2 flex items-center gap-2 text-sm text-ink/70 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editForm.isVerified}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            isVerified: e.target.checked,
+                          })
+                        }
+                        className="h-4 w-4 accent-primary-600"
+                      />
+                      Mark student as verified
+                    </label>
                   </div>
                   <div className="mt-3 flex items-center gap-2">
                     <button

@@ -149,6 +149,7 @@ exports.updateUser = async (req, res, next) => {
       "year",
       "section",
       "isActive",
+      "isVerified",
       "rollNo",
       "phone",
     ];

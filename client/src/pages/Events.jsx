@@ -185,7 +185,7 @@ export default function Events() {
     setSearchingStudents(true);
     const timer = setTimeout(() => {
       api
-        .get("/users", { params: { role: "student", search: q } })
+        .get("/users", { params: { role: "student", search: q, limit: 500 } })
         .then((r) => setStudentResults(r.data.users))
         .catch(() => toast.error("Could not search students"))
         .finally(() => setSearchingStudents(false));
@@ -211,6 +211,31 @@ export default function Events() {
       toast.success(`Marked ${student.name} present`);
     } catch (err) {
       toast.error(err.response?.data?.message || "Could not mark attendance");
+    } finally {
+      setMarkingStudentId(null);
+    }
+  };
+
+  // Undo a mistaken attendance mark — works for QR check-ins too, not just
+  // manual marks, since either can be a wrong-student mistake. Reverses the
+  // exact points/hours that were credited (handled server-side) and removes
+  // the record so the student can be re-marked correctly if needed.
+  const revokeAttendance = async (student) => {
+    const record = manualAttendance.find((a) => a.student?._id === student._id);
+    if (!record) return;
+    if (
+      !confirm(
+        `Remove ${student.name}'s attendance for this event? This reverses the hours/points they were credited.`,
+      )
+    )
+      return;
+    setMarkingStudentId(student._id);
+    try {
+      await api.delete(`/events/${manualEvent._id}/attendance/${record._id}`);
+      setManualAttendance((prev) => prev.filter((a) => a._id !== record._id));
+      toast.success(`Removed ${student.name}'s attendance`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Could not remove attendance");
     } finally {
       setMarkingStudentId(null);
     }
@@ -1024,20 +1049,26 @@ export default function Events() {
                         </p>
                       </div>
                       <button
-                        disabled={marked || markingStudentId === s._id}
-                        onClick={() => markPresent(s)}
-                        className={`shrink-0 text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+                        disabled={markingStudentId === s._id}
+                        onClick={() =>
+                          marked ? revokeAttendance(s) : markPresent(s)
+                        }
+                        className={`shrink-0 text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1.5 disabled:opacity-50 ${
                           marked
-                            ? "text-green-600 border-green-200 bg-green-50"
-                            : "text-primary-600 border-primary-200 hover:bg-primary-50 disabled:opacity-50"
+                            ? "text-red-600 border-red-200 bg-red-50 hover:bg-red-100"
+                            : "text-primary-600 border-primary-200 hover:bg-primary-50"
                         }`}
                       >
-                        {marked ? (
+                        {markingStudentId === s._id ? (
+                          marked ? (
+                            "Removing…"
+                          ) : (
+                            "Marking…"
+                          )
+                        ) : marked ? (
                           <>
-                            <Check size={12} /> Present
+                            <X size={12} /> Remove
                           </>
-                        ) : markingStudentId === s._id ? (
-                          "Marking…"
                         ) : (
                           "Mark present"
                         )}

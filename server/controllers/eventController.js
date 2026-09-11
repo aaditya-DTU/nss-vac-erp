@@ -3,7 +3,9 @@ const QRCode = require("qrcode");
 const ExcelJS = require("exceljs");
 const Event = require("../models/Event");
 const Attendance = require("../models/Attendance");
-const { awardCredit, notify } = require("../utils/ledger");
+const PointsLedger = require("../models/PointsLedger");
+const AuditLog = require("../models/AuditLog");
+const { awardCredit, reverseCredit, notify } = require("../utils/ledger");
 const { distanceMeters } = require("../utils/geo");
 
 exports.createEvent = async (req, res, next) => {
@@ -150,12 +152,10 @@ exports.checkIn = async (req, res, next) => {
       } else if (now > new Date(event.endTime)) {
         hint = "This event has already ended and attendance is closed.";
       }
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: `Attendance isn't open right now. ${hint}`,
-        });
+      return res.status(400).json({
+        success: false,
+        message: `Attendance isn't open right now. ${hint}`,
+      });
     }
 
     if (code !== String(event._id)) {
@@ -200,12 +200,10 @@ exports.checkIn = async (req, res, next) => {
       student: req.user._id,
     });
     if (existing) {
-      return res
-        .status(409)
-        .json({
-          success: false,
-          message: "You have already checked in for this event.",
-        });
+      return res.status(409).json({
+        success: false,
+        message: "You have already checked in for this event.",
+      });
     }
 
     const attendance = await Attendance.create({
@@ -282,6 +280,71 @@ exports.manualCheckIn = async (req, res, next) => {
     });
 
     res.status(201).json({ success: true, attendance });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Admin-only: undo a mistaken attendance mark — wrong student selected,
+// wrong event, etc. Reverses exactly the points/hours that were credited
+// (via the ledger's reverseCredit — a clean offsetting entry, not a rewrite
+// of history) and deletes the attendance record so the student can be
+// re-marked correctly afterward if needed. Works for both QR and
+// manually-marked attendance, since either can be a mistake.
+exports.removeAttendance = async (req, res, next) => {
+  try {
+    const io = req.app.get("io");
+    const attendance = await Attendance.findOne({
+      _id: req.params.attendanceId,
+      event: req.params.id,
+    });
+    if (!attendance)
+      return res
+        .status(404)
+        .json({ success: false, message: "Attendance record not found." });
+
+    // Attendance has a unique {event, student} index and credit is only
+    // ever awarded once per successful check-in, so there should be at
+    // most one matching ledger entry — but guard with a lookup rather than
+    // assuming, in case of any historical duplicate.
+    const ledgerEntry = await PointsLedger.findOne({
+      student: attendance.student,
+      source: "event",
+      refId: attendance.event,
+    });
+
+    if (ledgerEntry) {
+      await reverseCredit({
+        studentId: attendance.student,
+        originalEntry: ledgerEntry,
+        note: "Attendance correction — removed by admin",
+        awardedBy: req.user._id,
+        io,
+      });
+    }
+
+    await Attendance.deleteOne({ _id: attendance._id });
+
+    await AuditLog.create({
+      actor: req.user._id,
+      action: "attendance.remove",
+      targetType: "Attendance",
+      targetId: attendance._id,
+      meta: { event: attendance.event, student: attendance.student },
+    });
+
+    await notify({
+      userId: attendance.student,
+      title: "Attendance correction",
+      message:
+        "Your attendance for an event was removed by an admin. If this seems wrong, contact your coordinator.",
+      io,
+    });
+
+    res.json({
+      success: true,
+      message: "Attendance removed and credit reversed.",
+    });
   } catch (err) {
     next(err);
   }

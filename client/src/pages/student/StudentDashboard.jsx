@@ -5,7 +5,7 @@ import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { format } from 'date-fns';
-import { Clock, CheckCircle2, FileClock, Info } from 'lucide-react';
+import { Clock, CheckCircle2, FileClock, Info, CalendarCheck, MapPin } from 'lucide-react';
 
 // Signature element: a hand-drawn-feeling progress ring that visualizes
 // hours-completed vs. the VAC requirement — the one number every NSS
@@ -46,7 +46,7 @@ export default function StudentDashboard() {
 
   if (!data) return <p className="text-ink/50">Loading…</p>;
 
-  const { stats, upcomingTasks } = data;
+  const { stats, upcomingTasks, participatedEvents = [] } = data;
 
   return (
     <>
@@ -59,31 +59,48 @@ export default function StudentDashboard() {
           How it works & policies
         </Link>
       </div>
-      
+
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="card flex items-center gap-6 lg:col-span-1">
           <ProgressRing percent={stats.progressPercent} />
           <div>
-            <p className="text-sm text-ink/60">{stats.totalHours} / {stats.requiredHours} hrs</p>
-            <p className="text-sm text-ink/60 mt-1">{stats.totalPoints} points earned</p>
+            <p className="text-sm text-ink/60">
+              {stats.totalHours} / {stats.requiredHours} hrs
+            </p>
+            <p className="text-sm text-ink/60 mt-1">
+              {stats.totalPoints} points earned
+            </p>
             {stats.certificateEligible && (
-              <Link to="/certificate" className="badge bg-primary-100 text-primary-700 mt-3">Certificate eligible 🎉</Link>
+              <Link
+                to="/certificate"
+                className="badge bg-primary-100 text-primary-700 mt-3"
+              >
+                Certificate eligible 🎉
+              </Link>
             )}
           </div>
         </div>
 
         <div className="card flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-primary-100"><FileClock className="text-primary-700" /></div>
+          <div className="p-3 rounded-xl bg-primary-100">
+            <FileClock className="text-primary-700" />
+          </div>
           <div>
-            <p className="text-2xl font-semibold text-ink">{stats.pendingSubmissions}</p>
+            <p className="text-2xl font-semibold text-ink">
+              {stats.pendingSubmissions}
+            </p>
             <p className="text-sm text-ink/60">Pending review</p>
           </div>
         </div>
 
         <div className="card flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-primary-100"><CheckCircle2 className="text-primary-700" /></div>
+          <div className="p-3 rounded-xl bg-primary-100">
+            <CheckCircle2 className="text-primary-700" />
+          </div>
           <div>
-            <p className="text-2xl font-semibold text-ink">{stats.approvedSubmissions}</p>
+            <p className="text-2xl font-semibold text-ink">
+              {stats.approvedSubmissions}
+            </p>
             <p className="text-sm text-ink/60">Approved tasks</p>
           </div>
         </div>
@@ -91,19 +108,93 @@ export default function StudentDashboard() {
 
       <div className="card mt-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-display text-lg text-primary-900">Upcoming deadlines</h3>
-          <Link to="/tasks" className="text-sm text-primary-600 hover:underline">View all tasks</Link>
+          <h3 className="font-display text-lg text-primary-900">
+            Upcoming deadlines
+          </h3>
+          <Link
+            to="/tasks"
+            className="text-sm text-primary-600 hover:underline"
+          >
+            View all tasks
+          </Link>
         </div>
-        {upcomingTasks.length === 0 && <p className="text-sm text-ink/50">Nothing due soon. Nice work staying ahead.</p>}
+        {upcomingTasks.length === 0 && (
+          <p className="text-sm text-ink/50">
+            Nothing due soon. Nice work staying ahead.
+          </p>
+        )}
         <ul className="divide-y divide-primary-50">
           {upcomingTasks.map((t) => (
             <li key={t._id} className="py-3 flex items-center justify-between">
               <div>
                 <p className="font-medium text-ink">{t.title}</p>
-                <p className="text-xs text-ink/50 capitalize">{t.category.replace('_', ' ')} · {t.points} pts · {t.hoursWorth} hrs</p>
+                <p className="text-xs text-ink/50 capitalize">
+                  {t.category.replace("_", " ")} · {t.points} pts ·{" "}
+                  {t.hoursWorth} hrs
+                </p>
               </div>
               <div className="flex items-center gap-2 text-sm text-primary-700">
-                <Clock size={16} /> {format(new Date(t.deadline), 'MMM d')}
+                <Clock size={16} /> {format(new Date(t.deadline), "MMM d")}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="card mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display text-lg text-primary-900">
+            My participated events
+          </h3>
+          <div className="flex items-center gap-3">
+            <span className="badge bg-primary-100 text-primary-700">
+              {participatedEvents.length} attended
+            </span>
+            <Link
+              to="/events"
+              className="text-sm text-primary-600 hover:underline"
+            >
+              Browse events
+            </Link>
+          </div>
+        </div>
+        {participatedEvents.length === 0 && (
+          <p className="text-sm text-ink/50">
+            You haven't attended any events yet. Check in at an event to see it
+            here.
+          </p>
+        )}
+        <ul className="divide-y divide-primary-50 max-h-96 overflow-y-auto">
+          {participatedEvents.map((e) => (
+            <li
+              key={e._id}
+              className="py-3 flex items-center justify-between gap-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-primary-100 mt-0.5">
+                  <CalendarCheck size={16} className="text-primary-700" />
+                </div>
+                <div>
+                  <p className="font-medium text-ink">{e.title}</p>
+                  <p className="text-xs text-ink/50 flex items-center gap-1 flex-wrap">
+                    {format(new Date(e.startTime), "MMM d, yyyy")}
+                    {e.location && (
+                      <>
+                        <span>·</span>
+                        <MapPin size={12} />
+                        {e.location}
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-sm font-medium text-primary-700">
+                  {e.hoursWorth} hrs · {e.pointsWorth} pts
+                </p>
+                <p className="text-xs text-ink/40 capitalize">
+                  {e.method === "manual" ? "Marked by admin" : "QR check-in"}
+                </p>
               </div>
             </li>
           ))}

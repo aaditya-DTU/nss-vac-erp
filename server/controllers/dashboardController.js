@@ -2,6 +2,7 @@ const User = require("../models/User");
 const Task = require("../models/Task");
 const Submission = require("../models/Submission");
 const Event = require("../models/Event");
+const Attendance = require("../models/Attendance");
 
 exports.adminDashboard = async (req, res, next) => {
   try {
@@ -57,14 +58,40 @@ exports.adminDashboard = async (req, res, next) => {
 
 exports.studentDashboard = async (req, res, next) => {
   try {
-    const requiredHours = Number(process.env.REQUIRED_NSS_HOURS || 120);
-    const [pendingCount, approvedCount, upcomingTasks] = await Promise.all([
-      Submission.countDocuments({ student: req.user._id, status: "pending" }),
-      Submission.countDocuments({ student: req.user._id, status: "approved" }),
-      Task.find({ status: "published", deadline: { $gte: new Date() } })
-        .sort({ deadline: 1 })
-        .limit(5),
-    ]);
+    const requiredHours = Number(process.env.REQUIRED_NSS_HOURS || 60);
+    const [pendingCount, approvedCount, upcomingTasks, attendanceRecords] =
+      await Promise.all([
+        Submission.countDocuments({ student: req.user._id, status: "pending" }),
+        Submission.countDocuments({
+          student: req.user._id,
+          status: "approved",
+        }),
+        Task.find({ status: "published", deadline: { $gte: new Date() } })
+          .sort({ deadline: 1 })
+          .limit(5),
+        Attendance.find({ student: req.user._id })
+          .populate(
+            "event",
+            "title location startTime endTime hoursWorth pointsWorth",
+          )
+          .sort({ checkedInAt: -1 }),
+      ]);
+
+    // Skip records whose event was deleted (populate returns null for those)
+    const participatedEvents = attendanceRecords
+      .filter((a) => a.event)
+      .map((a) => ({
+        _id: a._id,
+        eventId: a.event._id,
+        title: a.event.title,
+        location: a.event.location,
+        startTime: a.event.startTime,
+        endTime: a.event.endTime,
+        hoursWorth: a.event.hoursWorth,
+        pointsWorth: a.event.pointsWorth,
+        checkedInAt: a.checkedInAt,
+        method: a.method,
+      }));
 
     res.json({
       success: true,
@@ -81,6 +108,7 @@ exports.studentDashboard = async (req, res, next) => {
         certificateEligible: req.user.totalHours >= requiredHours,
       },
       upcomingTasks,
+      participatedEvents,
     });
   } catch (err) {
     next(err);

@@ -65,7 +65,7 @@ async function generateCertificatePdf({ studentName, rollNo, totalHours, totalPo
   const uploaded = await uploadBufferToCloudinary(pdfBuffer, {
     folder: 'nss-vac-erp/certificates',
     resourceType: 'raw', // PDFs must go through Cloudinary as 'raw', not 'image'
-    publicId: certificateId,
+    publicId: `${certificateId}.pdf`, // raw uploads need the extension in the public_id or they download as octet-stream
   });
 
   return uploaded.secure_url;

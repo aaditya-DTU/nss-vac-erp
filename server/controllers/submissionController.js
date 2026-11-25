@@ -3,6 +3,19 @@ const Task = require('../models/Task');
 const { awardCredit, reverseCredit, notify } = require('../utils/ledger');
 const { computeImageHash, hammingDistance, DUPLICATE_THRESHOLD } = require('../utils/imageHash');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUpload');
+const path = require('path');
+const crypto = require('crypto');
+const https = require('https');
+
+const MIME_BY_EXT = {
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+};
 
 // Word-overlap (Jaccard) similarity — cheap enough to run against every
 // other submission on the same task without needing an embeddings call.
@@ -63,6 +76,13 @@ exports.submitProof = async (req, res, next) => {
         // Cloudinary account as an anti-XSS measure, which is exactly why
         // PDF proofs were failing to render while photos worked fine.
         resourceType: isImage ? 'image' : 'raw',
+        // RAW uploads keep the public_id exactly as given and Cloudinary does
+        // NOT append an extension. Without one the file is served as
+        // application/octet-stream, so browsers download it instead of
+        // previewing. Keep the original extension in the public_id.
+        publicId: isImage
+          ? undefined
+          : `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${path.extname(req.file.originalname).toLowerCase()}`,
       });
       proofUrl = uploaded.secure_url;
     }
@@ -232,6 +252,41 @@ exports.gallery = async (req, res, next) => {
       }));
 
     res.json({ success: true, photos });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /api/submissions/:id/proof
+// Streams the proof with the correct Content-Type + inline disposition.
+// Works for OLD uploads too (stored without an extension), using the saved
+// proofFilename to decide the type.
+exports.viewProof = async (req, res, next) => {
+  try {
+    const submission = await Submission.findById(req.params.id);
+    if (!submission || !submission.proofUrl) {
+      return res.status(404).json({ success: false, message: 'Proof file not found.' });
+    }
+    const isOwner = String(submission.student) === String(req.user._id);
+    if (req.user.role !== 'admin' && !isOwner) {
+      return res.status(403).json({ success: false, message: 'Not allowed.' });
+    }
+
+    const name = submission.proofFilename || 'proof';
+    const ext = path.extname(name).toLowerCase();
+    const type = MIME_BY_EXT[ext] || 'application/octet-stream';
+
+    https
+      .get(submission.proofUrl, (upstream) => {
+        if (upstream.statusCode !== 200) {
+          upstream.resume();
+          return res.status(502).json({ success: false, message: 'Could not fetch file.' });
+        }
+        res.setHeader('Content-Type', type);
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(name)}"`);
+        upstream.pipe(res);
+      })
+      .on('error', next);
   } catch (err) {
     next(err);
   }

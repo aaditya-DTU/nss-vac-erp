@@ -8,6 +8,7 @@ const ctrl = require('../controllers/submissionController');
 router.use(protect);
 
 router.get('/gallery', ctrl.gallery);
+router.get('/:id/proof', ctrl.viewProof);
 router.post('/tasks/:taskId', authorize('student'), upload.single('proof'), ctrl.submitProof);
 router.patch('/:id/review', authorize('admin'), ctrl.reviewSubmission);
 router.get('/me/completed', authorize('student'), ctrl.myCompletedTasks);

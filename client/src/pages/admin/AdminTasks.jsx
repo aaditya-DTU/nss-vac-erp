@@ -269,7 +269,7 @@ export default function AdminTasks() {
                     <div>
                       <p className="font-medium text-ink">{s.student?.name} <span className="text-ink/40 text-xs">· {s.student?.rollNo}</span></p>
                       <p className="text-xs text-ink/50">{s.remarks}</p>
-                      {s.proofUrl && <a href={s.proofUrl} target="_blank" rel="noreferrer" className="text-xs text-primary-600 hover:underline">View proof file</a>}
+                      {s.proofUrl && <a href={`${import.meta.env.VITE_API_URL || ''}/api/submissions/${s._id}/proof`} target="_blank" rel="noreferrer" className="text-xs text-primary-600 hover:underline">View proof file</a>}
                       {s.proofLink && <a href={s.proofLink} target="_blank" rel="noreferrer" className="text-xs text-primary-600 hover:underline block">{s.proofLink}</a>}
                     </div>
                     <span className="badge bg-primary-50 text-primary-700 capitalize">{s.status.replace('_', ' ')}</span>
